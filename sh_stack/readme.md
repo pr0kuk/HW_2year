@@ -11,7 +11,8 @@ If you need to test prepared instructions, then specify the file name in the arg
 
 	./a.out file
 
-### Instructions 
+### Instructions for file-mode testing
+*(For the real-time mode hints are displayed in stdout)*<br>
 The sample is located in the repository.<br>
 The first line must indicate the size of the created stack (If the stack has already been created, you must specify the size not exceeding the existing one)<br>
 The file must be ended by the *mark_destruct* or *finish* statement
@@ -22,6 +23,6 @@ This stack supports following instructions:
 * 		push [input] (pu [input])
 * 		pop (po)
 * 		print_all (pr)
-*		 detach_stack (d)
+*		detach_stack (d)
 * 		mark_destruct (m)
 * 		finish (f)
