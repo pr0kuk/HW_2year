@@ -15,8 +15,7 @@ struct msgbuf
 
 int main()
 {
-    char* path = "rec.c";
-    key_t key = ftok(path, 1);    
+    key_t key = ftok("rec.c", 1);    
     int id = msgget(key, 0);
     pid_t pid = getpid();
     struct msgbuf msg;
