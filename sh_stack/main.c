@@ -32,10 +32,10 @@ int handler(FILE * fd)
     }
     if (instr[0] == 's')
     {
-        scanf("%d", &wait);
+        fscanf(fd, "%d", &wait);
         if (wait == 1)
         {
-            scanf("%d%d", &w[0], &w[1]);
+            fscanf(fd, "%d%d", &w[0], &w[1]);
             timeout.tv_sec = w[0];
             timeout.tv_nsec = w[1];
             set_wait(stack, wait, &timeout);
@@ -55,7 +55,7 @@ int handler(FILE * fd)
             if (ret == 0)
                 printf("pushed %p %s\n", val, (char*)val);
             if (ret == -1)
-                printf("stack is overflowed\n");
+                printf("stack is overflowed, %p %s cannot be pushed\n", val, (char*)val);
         }
         if (instr[1] == 'o')
         {           

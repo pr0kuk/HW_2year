@@ -104,7 +104,9 @@ int push(struct stack_t* stack, void* val)
         {
             printf("stack is overflowed, wait flag is 1, waiting for %ld seconds and %ld nanoseconds\n", stack->timeout.tv_sec, stack->timeout.tv_nsec);
             nanosleep(&stack->timeout, NULL);
+            printf("timeout is ended, ");
             sem_getvalue(stack->count, ret);
+
             if (ret[0] == size[0])
             {
                 sem_post(stack->sem);
@@ -142,6 +144,7 @@ int pop(struct stack_t* stack, void** val)
         {
             printf("stack is empty, wait flag is 1, waiting for %ld seconds and %ld nanoseconds\n", stack->timeout.tv_sec, stack->timeout.tv_nsec);
             nanosleep(&stack->timeout, NULL);
+            printf("timeout is ended, ");
             sem_getvalue(stack->count, ret);
             if (ret[0] == 0)
             {
