@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <semaphore.h>
+#include <time.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <assert.h>
@@ -21,6 +22,8 @@ struct stack_t
     sem_t* count;
     sem_t* sem;
     void** sh_stack;
+    int wait;
+    struct timespec timeout;
 };
 
 struct stack_t* attach_stack(key_t key, int size)
@@ -31,10 +34,13 @@ struct stack_t* attach_stack(key_t key, int size)
     stack->size = sem_open("size", O_RDWR | O_CREAT, 0666, size);
     stack->sem = sem_open("sem", O_RDWR | O_CREAT, 0666, 1);
     stack->id_key = shmget(key, size, 0);
-    printf("key is %d\n", stack->id_key);
+    stack->wait = -1;
+    stack->timeout.tv_sec = 0;
+    stack->timeout.tv_nsec = 0;
     if (stack->id_key <= 0)
         stack->id_key = shmget(key, size, 0666 | IPC_CREAT);
     stack->sh_stack = (void**)shmat(stack->id_key, NULL, 0);
+    printf("key is %d\n", stack->id_key);
     if (stack->id_key <= 0 || stack->sh_stack <= 0)
         return NULL;
     return stack; 
@@ -50,7 +56,7 @@ int detach_stack(struct stack_t* stack)
 int mark_destruct(struct stack_t* stack)
 {
     shmdt(stack->sh_stack);
-    printf("stack with key %d have been destructed\n", shmctl(stack->id_key, IPC_RMID, 0));
+    printf("stack with return %d have been destructed\n", shmctl(stack->id_key, IPC_RMID, 0));
     sem_unlink("count");
     sem_unlink("size");
     sem_unlink("sem");
@@ -83,8 +89,28 @@ int push(struct stack_t* stack, void* val)
     sem_getvalue(stack->count, ret);
     if (ret[0] == size[0])
     {
-        sem_post(stack->sem);
-        return -1;
+        if (stack->wait == -1)
+        {   
+            sem_post(stack->sem);
+            return -1;
+        }
+        if (stack->wait == 0)
+        {
+            printf("stack is overflowed, wait flag is 0, waiting infinetely...\n");
+            while (ret[0] == size[0])
+                sem_getvalue(stack->count, ret);
+        }
+        if (stack->wait == 1)
+        {
+            printf("stack is overflowed, wait flag is 1, waiting for %ld seconds and %ld nanoseconds\n", stack->timeout.tv_sec, stack->timeout.tv_nsec);
+            nanosleep(&stack->timeout, NULL);
+            sem_getvalue(stack->count, ret);
+            if (ret[0] == size[0])
+            {
+                sem_post(stack->sem);
+                return -1;
+            }
+        }
     }
     stack->sh_stack[ret[0]] = val;
     sem_post(stack->count);
@@ -99,15 +125,43 @@ int pop(struct stack_t* stack, void** val)
     sem_getvalue(stack->count, ret);
     if (ret[0] == 0)
     {
-        sem_post(stack->sem);
-        return -1;
+
+
+        if (stack->wait == -1)
+        {   
+            sem_post(stack->sem);
+            return -1;
+        }
+        if (stack->wait == 0)
+        {
+            printf("stack is empty, wait flag is 0, waiting infinetely...\n");
+            while (ret[0] == 0)
+                sem_getvalue(stack->count, ret);
+        }
+        if (stack->wait == 1)
+        {
+            printf("stack is empty, wait flag is 1, waiting for %ld seconds and %ld nanoseconds\n", stack->timeout.tv_sec, stack->timeout.tv_nsec);
+            nanosleep(&stack->timeout, NULL);
+            sem_getvalue(stack->count, ret);
+            if (ret[0] == 0)
+            {
+                sem_post(stack->sem);
+                return -1;
+            }
+        }
     }
     val[0] = stack->sh_stack[ret[0]-1];
     sem_wait(stack->count);
     sem_post(stack->sem);
     return 0;
 }
-
+int set_wait(struct stack_t* stack, int val, struct timespec* timeout)
+{
+    stack->wait = val;
+    if (val == 1)
+        stack->timeout = *timeout;
+    return 0;
+}
 int print_all(struct stack_t* stack)
 {
     int i = 0;

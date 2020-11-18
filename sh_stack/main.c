@@ -4,11 +4,16 @@ struct stack_t* stack;
 
 int handler(FILE * fd)
 {
-    int    ret = 0;
+    int ret = 0;
+    int w[2];
     void** out   = (void**)malloc(100);
     char*  temp  = (char*)malloc(100);
     char*  input = (char*)malloc(100);
+    int wait = 0;
     char*  instr = (char*)malloc(100);
+    struct timespec timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_nsec = 0;
     fscanf(fd, "%s", instr);
     if (instr[0] == 'f')
     {
@@ -24,6 +29,19 @@ int handler(FILE * fd)
         {
             printf("count is %d\n", get_count(stack));
         }
+    }
+    if (instr[0] == 's')
+    {
+        scanf("%d", &wait);
+        if (wait == 1)
+        {
+            scanf("%d%d", &w[0], &w[1]);
+            timeout.tv_sec = w[0];
+            timeout.tv_nsec = w[1];
+            set_wait(stack, wait, &timeout);
+        }
+        if (wait == 0 || wait == -1)
+            set_wait(stack, wait, NULL);
     }
     if (instr[0] == 'p')
     {
@@ -112,7 +130,7 @@ int main(int argc, char* argv[])
             printf("stack cannot be attached\n");
             return -1;
         }
-        printf("This stack includes following instruction:\n\tget_size (get_s)\n\tget_count (get_c)\n\tpush [input] (pu [input])\n\tpop (po)\n\tprint_all (pr)\n\tdetach_stack (d)\n\tmark_destruct (m)\n\tfinish (f) (this instruction finishes the test)\n\nPrint any instruction to continue...\n");
+        printf("This stack includes following instruction:\n\tget_size (get_s)\n\tget_count (get_c)\n\tpush [input] (pu [input])\n\tpop (po)\n\tset_wait (s) [val] [seconds] [nanoseconds] (if val == 1, two numbers must be inputted)\n\tprint_all (pr)\n\tdetach_stack (d)\n\tmark_destruct (m)\n\tfinish (f) (this instruction finishes the test)\n\nPrint any instruction to continue...\n");
         while(1)
         {
             flag = handler(stdin);
