@@ -18,21 +18,20 @@
 struct stack_t
 {
     int id_key;
+    int wait;
+    void** sh_stack;
+    struct timespec timeout;
     sem_t* size;
     sem_t* count;
     sem_t* sem;
-    void** sh_stack;
-    int wait;
-    struct timespec timeout;
 };
 
 struct stack_t* attach_stack(key_t key, int size)
 {
     struct stack_t* stack = malloc(sizeof(stack_t));
-    sem_unlink("sem");
     stack->count = sem_open("count", O_RDWR | O_CREAT, 0666, 0);
-    stack->size = sem_open("size", O_RDWR | O_CREAT, 0666, size);
-    stack->sem = sem_open("sem", O_RDWR | O_CREAT, 0666, 1);
+    stack->size  = sem_open("size",  O_RDWR | O_CREAT, 0666, size);
+    stack->sem   = sem_open("sem",   O_RDWR | O_CREAT, 0666, 1);
     stack->id_key = shmget(key, size, 0);
     stack->wait = -1;
     stack->timeout.tv_sec = 0;
@@ -48,20 +47,21 @@ struct stack_t* attach_stack(key_t key, int size)
 
 int detach_stack(struct stack_t* stack)
 {
-    shmdt(stack->sh_stack);
+    int ret = shmdt(stack->sh_stack);
     free(stack);
-    return 0;
+    return ret;
 }
 
 int mark_destruct(struct stack_t* stack)
 {
     shmdt(stack->sh_stack);
-    printf("stack with return %d have been destructed\n", shmctl(stack->id_key, IPC_RMID, 0));
+    int ret = shmctl(stack->id_key, IPC_RMID, 0);
+    printf("stack with return %d have been destructed\n", ret);
     sem_unlink("count");
     sem_unlink("size");
     sem_unlink("sem");
     free(stack);
-    return 0;
+    return ret;
 }
 
 int get_size(struct stack_t* stack)
@@ -106,7 +106,6 @@ int push(struct stack_t* stack, void* val)
             nanosleep(&stack->timeout, NULL);
             printf("timeout is ended, ");
             sem_getvalue(stack->count, ret);
-
             if (ret[0] == size[0])
             {
                 sem_post(stack->sem);
@@ -127,8 +126,6 @@ int pop(struct stack_t* stack, void** val)
     sem_getvalue(stack->count, ret);
     if (ret[0] == 0)
     {
-
-
         if (stack->wait == -1)
         {   
             sem_post(stack->sem);
@@ -179,9 +176,7 @@ int print_all(struct stack_t* stack)
     {
         printf("%p", stack->sh_stack[i]);
         if (i != ret[0] - 1)
-        {
             printf(", ");
-        }
     }
     printf("}\n");
     sem_post(stack->sem);

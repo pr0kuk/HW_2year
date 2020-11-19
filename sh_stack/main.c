@@ -4,31 +4,24 @@ struct stack_t* stack;
 
 int handler(FILE * fd)
 {
-    int ret = 0;
+    int ret = 0, wait = 0;
     int w[2];
     void** out   = (void**)malloc(100);
     char*  temp  = (char*)malloc(100);
     char*  input = (char*)malloc(100);
-    int wait = 0;
     char*  instr = (char*)malloc(100);
     struct timespec timeout;
     timeout.tv_sec = 0;
     timeout.tv_nsec = 0;
     fscanf(fd, "%s", instr);
     if (instr[0] == 'f')
-    {
         return 1;
-    }
     if (instr[0] == 'g')
     {
         if (instr[4] == 's')
-        {
             printf("size is %d\n", get_size(stack));
-        }
         if (instr[4] == 'c')
-        {
             printf("count is %d\n", get_count(stack));
-        }
     }
     if (instr[0] == 's')
     {
@@ -66,9 +59,7 @@ int handler(FILE * fd)
                 printf("stack is empty\n");
         }
         if (instr[1] == 'r')
-        {
             print_all(stack);
-        }
     }
     if (instr[0] == 'd')
     {
