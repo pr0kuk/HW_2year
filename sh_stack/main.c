@@ -2,14 +2,38 @@
 
 struct stack_t* stack;
 
+int function()
+{
+    key_t key = ftok("stack.h", 0);
+    int i = 0;
+    char * z = "1";
+    void* zz = (void*)z;
+    printf("push %p\n", (void*)z);
+    int size = (2 << 4)*sizeof(void*);
+    void** out   = (void**)malloc(10);
+    printf("%d\n", size);
+    for (i = 0; i < 3; i++)
+        fork();
+    struct stack_t* st = attach_stack(key, size * sizeof(void*));
+    if (st == NULL)
+        printf("error\n");
+    for (i = 0; i < 5; i++)
+        push(st, zz);
+    print_all(st);
+    for (i = 0; i < 5; i++)
+        pop(st, out);
+    return 0;
+}
+
+
 int handler(FILE * fd)
 {
     int ret = 0, wait = 0;
     int w[2];
-    void** out   = (void**)malloc(100);
-    char*  temp  = (char*)malloc(100);
-    char*  input = (char*)malloc(100);
-    char*  instr = (char*)malloc(100);
+    void** out   = (void**)malloc(10);
+    char*  temp  = (char*)malloc(10);
+    char*  input = (char*)malloc(10);
+    char*  instr = (char*)malloc(10);
     struct timespec timeout;
     timeout.tv_sec = 0;
     timeout.tv_nsec = 0;
@@ -40,7 +64,7 @@ int handler(FILE * fd)
     {
         if (instr[1] == 'u')
         {
-            temp = (char*)malloc(100);
+            temp = (char*)malloc(10);
             input = temp;
             fscanf(fd, "%s", input);
             void* val = (void*)input;
@@ -121,6 +145,7 @@ int main(int argc, char* argv[])
             printf("stack cannot be attached\n");
             return -1;
         }
+        print_all(stack);
         printf("This stack includes following instruction:\n\tget_size (get_s)\n\tget_count (get_c)\n\tpush [input] (pu [input])\n\tpop (po)\n\tset_wait (s) [val] [seconds] [nanoseconds] (if val == 1, two numbers must be inputted)\n\tprint_all (pr)\n\tdetach_stack (d)\n\tmark_destruct (m)\n\tfinish (f) (this instruction finishes the test)\n\nPrint any instruction to continue...\n");
         while(1)
         {
@@ -133,5 +158,6 @@ int main(int argc, char* argv[])
         }
 
     }
+    //function();
     return 0;
 }
