@@ -2,30 +2,6 @@
 
 struct stack_t* stack;
 
-int function()
-{
-    key_t key = ftok("stack.h", 0);
-    int i = 0;
-    char * z = "1";
-    void* zz = (void*)z;
-    printf("push %p\n", (void*)z);
-    int size = (2 << 4)*sizeof(void*);
-    void** out   = (void**)malloc(10);
-    printf("%d\n", size);
-    for (i = 0; i < 3; i++)
-        fork();
-    struct stack_t* st = attach_stack(key, size * sizeof(void*));
-    if (st == NULL)
-        printf("error\n");
-    for (i = 0; i < 5; i++)
-        push(st, zz);
-    print_all(st);
-    for (i = 0; i < 5; i++)
-        pop(st, out);
-    return 0;
-}
-
-
 int handler(FILE * fd)
 {
     int ret = 0, wait = 0;
@@ -156,8 +132,6 @@ int main(int argc, char* argv[])
                 return 0;
             }
         }
-
     }
-    //function();
     return 0;
 }

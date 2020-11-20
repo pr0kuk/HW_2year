@@ -1,8 +1,10 @@
 # Description of the test
 #### Compile main.c file
 
-	gcc main.c -lpthread
-Run the binary file.
+	gcc main.c stack.c
+	
+#### Running the binary file.
+
 If real-time testing is required, run the file with no arguments 
 
 	./a.out
@@ -28,3 +30,15 @@ This stack supports following instructions:
 *		detach_stack (d)
 * 		mark_destruct (m)
 * 		finish (f)
+
+
+#### Compile stress test
+
+	gcc test.c stack.c -o test
+	
+#### Running stress test
+
+	sudo ./test
+	
+Super user rights are required because of setgid() and killpg().<br>
+The test is successful if the ouptut contains an empty stack.
