@@ -1,0 +1,10 @@
+# Task 6. Daemon-backup program
+#### Description of the program
+This program takes two parameters: the path to the source directory and to the backup directory.<br>It ^recursively^ scans the source directory and makes copies of all files that have not been copied before or that have been modified since the last backup. 
+<br>^After copying each file, gzip is called.^
+<br>Features that are highlighted by ^...^ have not been implemented yet.
+
+#### Compiling
+	gcc main.c
+#### Running
+	./a.out origin backup

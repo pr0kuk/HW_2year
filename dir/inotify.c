@@ -3,7 +3,7 @@
 #include <unistd.h>
 int main(int argc, char* argv[])
 {
-    int in, watch, ret, lenread = 0, q = 0;
+    int in, watch, lenread = 0;
     int mask = IN_CREATE | IN_DELETE | IN_MOVE_SELF;
     char buf[4096];
     char * ptr;
