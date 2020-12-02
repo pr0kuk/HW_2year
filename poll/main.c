@@ -7,8 +7,8 @@ int main(int argc, char* argv[])
 {
     char buf[1];
     int flag = 0, ret = 0, i = 0, n = argc - 1;
-    int * fd = (int*)malloc((argc-1)*sizeof(int));
-    int * flags = (int*)malloc((argc-1)*sizeof(int));
+    int * fd = (int*)malloc(n*sizeof(int));
+    int * flags = (int*)malloc(n*sizeof(int));
     struct pollfd * st = (struct pollfd *)malloc(n * sizeof(struct pollfd));
 
     for (i = 0; i < n; i++)
