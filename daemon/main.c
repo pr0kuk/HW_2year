@@ -6,10 +6,13 @@
 #include <signal.h>
 #include <string.h>
 int monitor_directory(char * path1, char * path2);
+int copy(char * path1, char * path2, uint32_t len, char * name);
+int monitor_events(char * path1, char * path2);
 void kill_all(int signum)
-{
     killpg(0, SIGKILL);
-}
+
+
+
 int copy(char * path1, char * path2, uint32_t len, char * name)
 {
     char * path11 = (char*)malloc(strlen(path1) + len + 1);
@@ -32,9 +35,8 @@ int copy(char * path1, char * path2, uint32_t len, char * name)
     strcat(path22, "/");
     strcat(path11, name);
     strcat(path22, name);
-    printf("%s\n%s\n", path11, path22);
-    pid_t pid = fork();
-    if (pid == 0)
+    printf("%d %s %s\n", getpid(), path11, path22);
+    if (fork() == 0)
         execlp("cp", "cp", path11, path22, NULL);
     return 0;
 }
@@ -56,13 +58,11 @@ int monitor_events(char * path1, char * path2)
     watch = inotify_add_watch(in, path1, mask);
     if (watch == -1)
     {
-        printf("%d %s\n",getpid(), path1);
         perror("inotify_add_watch");
         return -1;
     }
     printf("%d %s inotify was initialized\n", getpid(), path1);
-    pid_t pid = fork();
-    if (pid == 0)
+    if (fork() == 0)
     {
         char* path11 = (char*)malloc(strlen(path1)+2);
         if (path11 == NULL)
@@ -90,7 +90,7 @@ int monitor_events(char * path1, char * path2)
             event = (struct inotify_event *) ptr;
             if (event->mask & IN_CREATE)
             {
-                printf("creat %s\n", event->name);
+                //printf("creat %s\n", event->name);
                 char* path11 = (char*)malloc(strlen(path1) + event->len + 1);
                 if (path11 == NULL)
                 {
@@ -117,10 +117,7 @@ int monitor_events(char * path1, char * path2)
                         strcpy(path22, path2);
                         strcat(path22, "/");
                         strcat(path22, event->name);
-                        printf("kryak is %s %s\n", path11, path22);
                         monitor_directory(path11, path22);
-                        printf("eventing is now\n");
-                        monitor_events(path11, path22);
                     }
                 }
                 //printf("creating %s was detected\n", event->name);
@@ -180,12 +177,15 @@ int monitor_directory(char * path1, char * path2)
             strcat(path22, "/");
             strcat(path11, pointer->d_name);
             strcat(path22, pointer->d_name);
-            if (fork() == 0)   
-                monitor_events(path11, path22);
-            monitor_directory(path11, path22);
+            //if (fork() == 0)   
+            //    monitor_events(path11, path22);
+            //monitor_directory(path11, path22);
+            if (fork() == 0)
+                monitor_directory(path11, path22);
         }
     }
     closedir(dir);
+    monitor_events(path1, path2);
     return 0;
 }
 
@@ -200,8 +200,6 @@ int main(int argc, char * argv[])
         printf("argc < 3\n");
         return -1;
     }
-    if (fork() == 0)
-        monitor_events(argv[1], argv[2]);
     if (fork() == 0)
         monitor_directory(argv[1], argv[2]);
     pause();
