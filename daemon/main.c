@@ -4,15 +4,42 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <fcntl.h>
 #include <string.h>
+#include <errno.h>
+
+char* path_argv1;
+char* path_argv2;
+FILE* fd;
+#define LOG(expr, ...)  \
+    fd = fopen("/home/alexshch/HW_2year/daemon/log", "a"); \
+    fprintf(fd, expr, __VA_ARGS__); \
+    fflush(fd); \
+    fclose(fd);
+
 int monitor_directory(char * path1, char * path2);
 int copy(char * path1, char * path2, uint32_t len, char * name);
 int monitor_events(char * path1, char * path2);
+
 void kill_all(int signum)
 {
+    LOG("%d daemon suspended\n", getpid());
     killpg(0, SIGKILL);
 }
 
+void change(int signum)
+{
+    int id_key = shmget(24, strlen(path_argv1), IPC_CREAT | 0666);
+    char* new_dir = (char*)shmat(id_key, NULL, 0);
+    strcpy(new_dir, path_argv1);
+    LOG("directory changed, old directory: %s\n", path_argv2);
+    raise(SIGINT);
+}
 
 int copy(char * path1, char * path2, uint32_t len, char * name)
 {
@@ -20,13 +47,11 @@ int copy(char * path1, char * path2, uint32_t len, char * name)
     char * path22 = (char*)malloc(strlen(path1) + len + 1);
     if (path11 == NULL)
     {
-        printf("copy error %s\n", path1);
         perror("malloc");
         return -1;
     }
     if (path22 == NULL)
     {
-        printf("copy error %s\n", path2);
         perror("malloc");
         return -1;
     }
@@ -36,9 +61,19 @@ int copy(char * path1, char * path2, uint32_t len, char * name)
     strcat(path22, "/");
     strcat(path11, name);
     strcat(path22, name);
-    printf("%d %s %s\n", getpid(), path11, path22);
     if (fork() == 0)
-        execlp("cp", "cp", path11, path22, NULL);
+    {
+        int fder = open("/home/alexshch/HW_2year/daemon/log2", O_WRONLY | O_APPEND | O_TRUNC | O_CREAT | O_SYNC, 0666);
+        dup2(fder, 2);
+        pid_t child = fork();
+        if (child == 0)
+            execlp("cp", "cp", "-u", path11, path22, NULL);
+        waitpid(child, NULL, 0);
+        execlp("gzip", "gzip", "-f", path22, NULL);
+        LOG("cp error: %s", strerror(errno));
+        raise(SIGKILL);
+    }
+    LOG("%d %s -> %s\n", getpid(), path11, path22);
     return 0;
 }
 
@@ -62,20 +97,7 @@ int monitor_events(char * path1, char * path2)
         perror("inotify_add_watch");
         return -1;
     }
-    printf("%d %s inotify was initialized\n", getpid(), path1);
-    if (fork() == 0)
-    {
-        char* path11 = (char*)malloc(strlen(path1)+2);
-        if (path11 == NULL)
-        {
-            printf("monitor events %s\n", path1);
-            perror("malloc");
-            return -1;
-        }
-        strcpy(path11, path1);
-        strcat(path11, "/.");
-        execlp("cp", "cp", "-r", "-u", "-v", "-p", path11, path2, NULL);
-    }
+    LOG("%d %s inotify was initialized\n", getpid(), path1);
     while (1)
     {
         lenread = read(in, buf, sizeof(buf));
@@ -91,17 +113,16 @@ int monitor_events(char * path1, char * path2)
             event = (struct inotify_event *) ptr;
             if (event->mask & IN_CREATE)
             {
-                //printf("creat %s\n", event->name);
                 char* path11 = (char*)malloc(strlen(path1) + event->len + 1);
                 if (path11 == NULL)
                 {
-                    //printf("%s %s\n", path1, pointer->d_name);
                     perror("event malloc");
                     return -1;
                 }
                 strcpy(path11, path1);
                 strcat(path11, "/");
                 strcat(path11, event->name);
+                LOG("created %s\n", path11);
                 DIR * dir = opendir(path11);
                 if (dir == NULL)
                     copy(path1, path2, event->len, event->name);
@@ -121,24 +142,49 @@ int monitor_events(char * path1, char * path2)
                         monitor_directory(path11, path22);
                     }
                 }
-                //printf("creating %s was detected\n", event->name);
             }
             if (event->mask & IN_MODIFY)
             {
-                //printf("modif\n");
+                LOG("modified %s/%s\n", path1, event->name);
                 copy(path1, path2, event->len, event->name);
-                //printf("deleting %s was detected\n", event->name);
             }
             if (event->mask & IN_MOVED_TO)
             {
-                //printf("moved\n");
-                copy(path1, path2, event->len, event->name);
+                LOG("renamed %s/%s\n", path1, event->name);
+                                char* path11 = (char*)malloc(strlen(path1) + event->len + 1);
+                if (path11 == NULL)
+                {
+                    perror("event malloc");
+                    return -1;
+                }
+                strcpy(path11, path1);
+                strcat(path11, "/");
+                strcat(path11, event->name);
+                LOG("created %s\n", path11);
+                DIR * dir = opendir(path11);
+                if (dir == NULL)
+                    copy(path1, path2, event->len, event->name);
+                else
+                {   
+                    if (fork() == 0)
+                    {
+                        char* path22 = (char*)malloc(strlen(path2) + event->len + 1);
+                        if (path22 == NULL)
+                        {
+                            perror("event malloc");
+                            return -1;
+                        }
+                        strcpy(path22, path2);
+                        strcat(path22, "/");
+                        strcat(path22, event->name);
+                        monitor_directory(path11, path22);
+                    }
+                }
             }
-
         }
-        printf("%d inotify was stopped\n", getpid());
-        raise(SIGKILL);
     }
+    LOG("%d inotify was stopped\n", getpid());
+    raise(SIGKILL);
     return 0;
 }
 
@@ -153,6 +199,17 @@ int monitor_directory(char * path1, char * path2)
         perror("opendir");
         return -1;
     }
+    pid_t child = fork();
+    if (child == 0)
+    {
+        int fder = open("/home/alexshch/HW_2year/daemon/log2", O_WRONLY | O_APPEND | O_TRUNC | O_CREAT | O_SYNC, 0666);
+        dup2(fder, 2);
+        execlp("mkdir", "mkdir", "-p", path2, NULL);
+        LOG("mkdir error: %s", strerror(errno))
+        raise(SIGKILL);
+    }
+    waitpid(child, NULL, 0);
+    LOG("created directory %s\n", path2);
     while(1)
     {
         pointer = readdir(dir);
@@ -183,25 +240,38 @@ int monitor_directory(char * path1, char * path2)
             if (fork() == 0)
                 monitor_directory(path11, path22);
         }
+        else
+            copy(path1, path2, strlen(pointer->d_name), pointer->d_name);
     }
     closedir(dir);
     monitor_events(path1, path2);
     return 0;
 }
 
-
-
 int main(int argc, char * argv[])
 {
-    signal (SIGINT, kill_all);
-    printf("main pid is %d\n", getpid());
+    signal(SIGINT, kill_all);
+    signal(SIGUSR1, change);
     if (argc < 3)
     {
         printf("argc < 3\n");
         return -1;
     }
+    path_argv1 = argv[1];
+    path_argv2 = argv[2];
+    if (daemon(1, 1) == -1)
+    {
+        perror("daemon");
+        return -1;
+    }
+    int id_key = shmget(42, sizeof(unsigned int), IPC_CREAT | 0666);
+    pid_t* pid = (pid_t*)shmat(id_key, NULL, 0);
+    *pid = getpid();
+    LOG("current directory is %s\n", path_argv2);
+    LOG("main pid is %d\n", getpid());
     if (fork() == 0)
         monitor_directory(argv[1], argv[2]);
-    pause();
+    while(1)
+        pause();
     return 0;
 }
