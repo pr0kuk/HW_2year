@@ -9,8 +9,9 @@ int monitor_directory(char * path1, char * path2);
 int copy(char * path1, char * path2, uint32_t len, char * name);
 int monitor_events(char * path1, char * path2);
 void kill_all(int signum)
+{
     killpg(0, SIGKILL);
-
+}
 
 
 int copy(char * path1, char * path2, uint32_t len, char * name)
@@ -135,6 +136,8 @@ int monitor_events(char * path1, char * path2)
             }
 
         }
+        printf("%d inotify was stopped\n", getpid());
+        raise(SIGKILL);
     }
     return 0;
 }
@@ -177,9 +180,6 @@ int monitor_directory(char * path1, char * path2)
             strcat(path22, "/");
             strcat(path11, pointer->d_name);
             strcat(path22, pointer->d_name);
-            //if (fork() == 0)   
-            //    monitor_events(path11, path22);
-            //monitor_directory(path11, path22);
             if (fork() == 0)
                 monitor_directory(path11, path22);
         }
