@@ -1,35 +1,49 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/inotify.h>
+#include <dirent.h>
 #include <unistd.h>
+#include <signal.h>
 #include <string.h>
-
-void copy(char * path1, char * path2, uint32_t len, char * name)
+int monitor_directory(char * path1, char * path2);
+void kill_all(int signum)
 {
-    char * divisor = "/";
-    char * path11 = (char*)malloc(strlen(path1) + len);
-    char * path22 = (char*)malloc(strlen(path1) + len);
+    killpg(0, SIGKILL);
+}
+int copy(char * path1, char * path2, uint32_t len, char * name)
+{
+    char * path11 = (char*)malloc(strlen(path1) + len + 1);
+    char * path22 = (char*)malloc(strlen(path1) + len + 1);
+    if (path11 == NULL)
+    {
+        printf("copy error %s\n", path1);
+        perror("malloc");
+        return -1;
+    }
+    if (path22 == NULL)
+    {
+        printf("copy error %s\n", path2);
+        perror("malloc");
+        return -1;
+    }
     strcpy(path11, path1);
     strcpy(path22, path2);
-    strcat(path11, divisor);
-    strcat(path22, divisor);
+    strcat(path11, "/");
+    strcat(path22, "/");
     strcat(path11, name);
     strcat(path22, name);
     printf("%s\n%s\n", path11, path22);
     pid_t pid = fork();
     if (pid == 0)
         execlp("cp", "cp", path11, path22, NULL);
+    return 0;
 }
 
-int main(int argc, char * argv[])
+
+int monitor_events(char * path1, char * path2)
 {
-    int in, watch, lenread = 0;
+    int in, watch, lenread;
     int mask = IN_CREATE | IN_MODIFY | IN_MOVED_TO;
-    if (argc < 3)
-    {
-        printf("argc < 3\n");
-        return -1;
-    }
     char buf[4096];
     char * ptr;
     struct inotify_event* event;
@@ -39,19 +53,28 @@ int main(int argc, char * argv[])
         perror("inotify_init");
         return -1;
     }
-    watch = inotify_add_watch(in, argv[1], mask);
+    watch = inotify_add_watch(in, path1, mask);
     if (watch == -1)
     {
+        printf("%d %s\n",getpid(), path1);
         perror("inotify_add_watch");
         return -1;
     }
+    printf("%d %s inotify was initialized\n", getpid(), path1);
     pid_t pid = fork();
-    char* path11 = (char*)malloc(strlen(argv[1])+2);
-    strcpy(path11, argv[1]);
-    strcat(path11, "/.");
     if (pid == 0)
-        execlp("cp", "cp", "-r", "-u", "-v", path11, argv[2], NULL);
-    printf("inotify was initialized\n");
+    {
+        char* path11 = (char*)malloc(strlen(path1)+2);
+        if (path11 == NULL)
+        {
+            printf("monitor events %s\n", path1);
+            perror("malloc");
+            return -1;
+        }
+        strcpy(path11, path1);
+        strcat(path11, "/.");
+        execlp("cp", "cp", "-r", "-u", "-v", "-p", path11, path2, NULL);
+    }
     while (1)
     {
         lenread = read(in, buf, sizeof(buf));
@@ -64,26 +87,123 @@ int main(int argc, char * argv[])
             break;
         for (ptr = buf; ptr < buf + lenread; ptr += sizeof(struct inotify_event) + event->len)
         {
-            event = (const struct inotify_event *) ptr;
+            event = (struct inotify_event *) ptr;
             if (event->mask & IN_CREATE)
             {
-                //printf("creat\n");
-                copy(argv[1], argv[2], event->len, event->name);
+                printf("creat %s\n", event->name);
+                char* path11 = (char*)malloc(strlen(path1) + event->len + 1);
+                if (path11 == NULL)
+                {
+                    //printf("%s %s\n", path1, pointer->d_name);
+                    perror("event malloc");
+                    return -1;
+                }
+                strcpy(path11, path1);
+                strcat(path11, "/");
+                strcat(path11, event->name);
+                DIR * dir = opendir(path11);
+                if (dir == NULL)
+                    copy(path1, path2, event->len, event->name);
+                else
+                {   
+                    if (fork()==0)
+                    {
+                        char* path22 = (char*)malloc(strlen(path2) + event->len + 1);
+                        if (path22 == NULL)
+                        {
+                            perror("event malloc");
+                            return -1;
+                        }
+                        strcpy(path22, path2);
+                        strcat(path22, "/");
+                        strcat(path22, event->name);
+                        printf("kryak is %s %s\n", path11, path22);
+                        monitor_directory(path11, path22);
+                        printf("eventing is now\n");
+                        monitor_events(path11, path22);
+                    }
+                }
                 //printf("creating %s was detected\n", event->name);
             }
             if (event->mask & IN_MODIFY)
             {
                 //printf("modif\n");
-                copy(argv[1], argv[2], event->len, event->name);
+                copy(path1, path2, event->len, event->name);
                 //printf("deleting %s was detected\n", event->name);
             }
             if (event->mask & IN_MOVED_TO)
             {
                 //printf("moved\n");
-                copy(argv[1], argv[2], event->len, event->name);
+                copy(path1, path2, event->len, event->name);
             }
 
         }
     }
+    return 0;
+}
+
+int monitor_directory(char * path1, char * path2)
+{
+    struct dirent* pointer;
+    char * path11;
+    char * path22;
+    DIR * dir = opendir(path1);
+    if(dir == NULL)
+    {
+        perror("opendir");
+        return -1;
+    }
+    while(1)
+    {
+        pointer = readdir(dir);
+        if (pointer == NULL)
+            break;
+        if ((strcmp(pointer->d_name, ".") == 0) || (strcmp(pointer->d_name, "..") == 0))
+            continue;
+        if (pointer->d_type == DT_DIR)
+        {   
+            path11 = (char*)malloc(strlen(path1) + strlen(pointer->d_name) + 2);
+            path22 = (char*)malloc(strlen(path2) + strlen(pointer->d_name) + 2);
+            if (path11 == NULL)
+            {
+                perror("malloc");
+                return -1;
+            }
+            if (path22 == NULL)
+            {
+                perror("malloc");
+                return -1;
+            }
+            strcpy(path11, path1);
+            strcpy(path22, path2);
+            strcat(path11, "/");
+            strcat(path22, "/");
+            strcat(path11, pointer->d_name);
+            strcat(path22, pointer->d_name);
+            if (fork() == 0)   
+                monitor_events(path11, path22);
+            monitor_directory(path11, path22);
+        }
+    }
+    closedir(dir);
+    return 0;
+}
+
+
+
+int main(int argc, char * argv[])
+{
+    signal (SIGINT, kill_all);
+    printf("main pid is %d\n", getpid());
+    if (argc < 3)
+    {
+        printf("argc < 3\n");
+        return -1;
+    }
+    if (fork() == 0)
+        monitor_events(argv[1], argv[2]);
+    if (fork() == 0)
+        monitor_directory(argv[1], argv[2]);
+    pause();
     return 0;
 }
