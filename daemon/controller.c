@@ -13,14 +13,23 @@ int main(int argc, char* argv[])
         kill(*pid, SIGINT);
         printf("%d daemon terminated\n", *pid);
     }
-    if (argv[1][0] == 'd')
+    if (argv[1][0] == 'b')
     {
-        kill(*pid, SIGUSR1);
-        id_key = shmget(24, 1, IPC_EXCL);
+        id_key = shmget(24, 4, IPC_CREAT | 0666);
         char* new_dir = (char*)shmat(id_key, NULL, 0);
+        strcpy(new_dir, argv[2]);
+        shmdt(new_dir);
+        kill(*pid, SIGUSR1);
         printf("backup directory changed to %s\n", argv[2]);
-        execl("/home/alexshch/HW_2year/daemon/a.out", " ", new_dir, argv[2], NULL);
-        perror("execlp");
+    }
+    if (argv[1][0] == 'w')
+    {
+        id_key = shmget(28, 20, IPC_CREAT | 0666);
+        char* new_dir = (char*)shmat(id_key, NULL, 0);
+        strcpy(new_dir, argv[2]);
+        shmdt(new_dir);
+        kill(*pid, SIGUSR2);
+        printf("working directory changed to %s\n", argv[2]);
     }
     if (argv[1][0] == 'p')
         printf("pid is %d\n", *pid);
