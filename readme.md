@@ -8,9 +8,13 @@ All tasks were completed by the student of MIPT group B01-908 Alexey Shcherbakov
 * Home task 2: grep
 * Home task 3: trans
 * Home task 4: sh_stack
+* Home task 6: daemon
 
 #### Class tasks
 * Class task pthreads
 * Class task sh_memory
 * Class task msg
 * Class task env
+* Class task inotify
+* Class task dir
+* Class task flocks
