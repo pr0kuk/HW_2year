@@ -5,7 +5,7 @@
 	
 #### Running
 
-	./hand
+	./hand [file_output]
 	./a.out [file_name] [hand_pid]
 	
 #### Description
