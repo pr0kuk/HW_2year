@@ -41,7 +41,11 @@ void killrest(int signum, siginfo_t *siginfo, void* context)
 }
 int main(int argc, char* argv[])
 {
-
+    if (argc < 2)
+    {
+        printf("argc<2\n");
+        return -1;
+    }
     mem = malloc(sizeof(void*));
     char temp[1];
     struct sigaction sa;
@@ -56,7 +60,7 @@ int main(int argc, char* argv[])
     killing.sa_flags = SA_SIGINFO;
     killing.sa_sigaction = &killrest;
     sigaction(SIGCHLD, &killing, NULL);
-    int fd = open("file.copy", O_RDWR | O_CREAT | O_TRUNC, 0666);
+    int fd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0666);
     if (fd < 0)
     {
         perror("open");
