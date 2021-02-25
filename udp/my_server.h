@@ -2,6 +2,7 @@
 #define _myserver_h
 
 #include <stdio.h>
+#include <limits.h>
 #include <sys/un.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -15,5 +16,8 @@
 
 #define PATH "/tmp/mysock"
 #define BUFSZ 256
+#define IDSZ 16
+#define MAX_PID 100000
+#define CLOCKS_TO_WAIT 1000
 
 #endif
