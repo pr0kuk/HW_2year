@@ -5,9 +5,8 @@ int main(int argc, char* argv[])
 {
     struct sockaddr_in name = {0};
     int sk, ret;
-    char buffer[BUFSZ] = {0};
     sk = socket(AF_INET, SOCK_DGRAM, 0);
-    char path[MAX_PATH];
+    char path[PATH_MAX];
     if (sk < 0)
     {
         perror("socket");
@@ -23,24 +22,41 @@ int main(int argc, char* argv[])
         close(sk);
         return 1;
     }
+    pid_t pid = getpid();
+    char pid_str[MAX_PID];
+    char sendbuf[BUFSZ+10];
+    sprintf(pid_str, "%s%d", "!connect!", pid);
+    ret = sendto(sk, pid_str, strlen(pid_str), 0, (struct sockaddr*)&name, sizeof(name));
+    if (ret < 0)
+    {
+        perror("sending first msg failed");
+        exit(1);
+    }
     while(1) {
+        char buffer[BUFSZ] = {0};
         ret = read(1, buffer, BUFSZ);
-        if (ret < 0 || ret > BUFSZ)
+        if (ret < 0 || ret > BUFSZ) 
         {
             perror("read");
             exit(1);
         }
-        if (strncmp(buffer, "cd", sizeof("cd") - 1) == 0) {
-            buffer[strlen(buffer)-1] = 0;
-            strcpy(path, buffer);
-            continue;
+        buffer[strlen(buffer)-1] = 0;
+        ret = sprintf(sendbuf, "%d!%s", pid, buffer);
+        if (ret < 0)
+        {
+            perror("sprintf");
+            exit(1);
         }
-        ret = sendto(sk, buffer, BUFSZ, 0, (struct sockaddr*)&name, sizeof(name));
-        if (ret < 0 || ret > BUFSZ)
+        ret = sendto(sk, sendbuf, BUFSZ+10, 0, (struct sockaddr*)&name, sizeof(name));
+        if (ret < 0 || ret > BUFSZ + 10)
         {
             
             perror("write");
             exit(1);
+        }
+        if (strncmp(buffer, "exit", sizeof("exit") - 1) == 0) {
+            printf("Disconnected..");
+            exit(0);
         }
     }
     return 0;
