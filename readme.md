@@ -18,3 +18,6 @@ All tasks were completed by the student of MIPT group B01-908 Alexey Shcherbakov
 * Class task inotify
 * Class task dir
 * Class task flocks
+* Class task sockets
+* Class task tcp server-client
+* Class task udp server-client
