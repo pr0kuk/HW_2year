@@ -10,7 +10,8 @@ Server accepts string and recognises four types of commands: print [string], ls,
 If he accepts print then he prints [string] into stdout.<br>
 If he accepts ls then he prints<br>
 If he accepts cd then he change current directory<br>
-If he accepts exit then he shuts down the process working with this client, program-client returns 0.<br>
+If he accepts shell then he started pty<br>
+If he accepts quit then he shuts down the process working with this client, program-client returns 0.<br>
 
 
 #### Compiling
@@ -25,4 +26,8 @@ If he accepts exit then he shuts down the process working with this client, prog
 	cd /bin
 	ls
 	broadcast
+	shell
+	ls
+	ps avx
 	exit
+	quit
