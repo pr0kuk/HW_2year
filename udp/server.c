@@ -1,77 +1,105 @@
 #include "my_server.h"
 int mas[MAX_CLIENTS];
-int flag[MAX_CLIENTS];
 int fd[MAX_CLIENTS];
-void execution(char* child_buf, int num)
+int pid[MAX_CLIENTS];
+
+void shell(int num)
+{
+    int ret;
+    fd[num] = open("/dev/ptmx", O_RDWR | O_NOCTTY);
+    if (fd[num] < 0)
+        perror("open fd");
+    ret = grantpt(fd[num]);
+    if (fd[num] < 0)
+        perror("grantpt");
+    ret = unlockpt(fd[num]);
+    if (ret < 0)
+        perror("unlockpt");
+    char* path = ptsname(fd[num]);
+    if (path == NULL)
+        perror("ptsname");
+    int resfd = open(path, O_RDWR);
+    if (resfd < 0)
+        perror("open resfd");
+    struct termios termios_p;
+    termios_p.c_lflag = 0;
+    ret = tcsetattr(resfd, 0, &termios_p);
+    if (ret < 0)
+        perror("tcsetattr");
+    if (pid[num] = fork() == 0) {
+        ret = dup2(resfd, STDIN_FILENO);
+        if (ret < 0)
+            perror("dup2 resfd 0");
+        ret = dup2(resfd, STDOUT_FILENO);
+        if (ret < 0)
+            perror("dup2 resfd 1");
+        ret = dup2(resfd, STDERR_FILENO);
+        if (ret < 0)
+            perror("dup2 resfd 2");
+        ret = setsid();
+        if (ret < 0)
+            perror("setsid");
+        execl("/bin/bash", "/bin/bash", NULL);
+        perror("execl");
+        exit(1);
+    }
+    if (pid < 0)
+        perror("fork");
+    char child_buf[BUFSZ] = {0};
+    struct pollfd pollfds = {fd[num], POLLIN};
+    for (int j = 0; j < BUFSZ; child_buf[j++] = 0);
+    while (ret = poll(&pollfds, 1, POLL_WAIT) != 0) {
+        for (int j = 0; j < BUFSZ; child_buf[j++] = 0);
+        read(fd[num], child_buf, BUFSZ);
+        write(1, child_buf, BUFSZ);
+    }
+    printf("\n");
+}
+
+
+void execution(char* child_buf, int num, int* flag)
 {
     int ret;
     if (strncmp(child_buf, "print", sizeof("print") - 1) == 0)
         printf("%s\n", child_buf + sizeof("print"));
     if (strncmp(child_buf, "quit", sizeof("quit") - 1) == 0)
         exit(0);
+    if (strncmp(child_buf, "exit", sizeof("exit") - 1) == 0) {
+        write(fd[num], "exit\n", sizeof("exit\n"));
+        printf("exit here\n");
+        close(fd[num]);
+        strcpy(child_buf, "bash terminated\n");
+    }
     if (strncmp(child_buf, "shell", sizeof("shell") - 1) == 0) {
-        flag[num] = 1;
-        fd[num] = open("/dev/ptmx", O_RDWR | O_NOCTTY);
-        if (fd[num] < 0) {
-            perror("open fd");
-        }
-        ret = grantpt(fd[num]);
-        if (fd[num] < 0) {
-            perror("grantpt");
-        }
-        ret = unlockpt(fd[num]);
-        if (ret < 0) {
-            perror("unlockpt");
-        }
-        char* path = ptsname(fd[num]);
-        if (path == NULL) {
-            perror("ptsname");
-        }
-        int resfd = open(path, O_RDWR);
-        struct termios termios_p;
-        termios_p.c_lflag = 0;
-        tcsetattr(resfd, 0, &termios_p);
-        if (resfd < 0)
-            perror("open path");
-        if (fork() == 0) {
-            ret = dup2(resfd, STDIN_FILENO);
-            if (ret < 0)
-                perror("dup2 resfd 0");
-            ret = dup2(resfd, STDOUT_FILENO);
-            if (ret < 0)
-                perror("dup2 resfd 1");
-            ret = dup2(resfd, STDERR_FILENO);
-            if (ret < 0)
-                perror("dup2 resfd 2");
-            ret = setsid();
-            if (ret < 0)
-                perror("setsid");
-            execl("/bin/bash", "/bin/bash", NULL);
-            perror("execl");
-            exit(1);
-        }
-        read(fd[num], path, BUFSZ);
+        *flag = 1;
+        shell(num);
         strcpy(child_buf, "shell ignited\n");
+    }
+    if (strncmp(child_buf, "cd", sizeof("cd") - 1) == 0) {
+            child_buf[strlen(child_buf) - 1] = 0;
+            printf("chdir to %s\n", child_buf+sizeof("cd"));
+            if (chdir(child_buf + sizeof("cd")) == -1)
+                perror("chdir");
+            strcpy(child_buf, "cd completed\n");
     }
     if (strncmp(child_buf, "ls", sizeof("ls") - 1) == 0) {
         int lspipe[2];
         if (pipe(lspipe) < 0)
             perror("lspipe");
-        dup2(lspipe[1], 1);
+        ret = dup2(lspipe[1], 1);
+        if (ret < 0)
+            perror("dup2 lspipe[1] 1");
         if(system("ls") < 0)
-            perror("execlp");
+            perror("execlp ls");
         read(lspipe[0], child_buf, BUFSZ);
-    }
-    if (strncmp(child_buf, "cd", sizeof("cd") - 1) == 0) {
-            if (chdir(child_buf + sizeof("cd")) == -1)
-                perror("chdir");
-            strcpy(child_buf, "cd completed\n");
     }
 }
 
+
+
 void child_handle(int sk, struct sockaddr_in name, int num)
 {
-    int ret;
+    int ret, flag = 0;
     int ans_sk = socket(AF_INET, SOCK_DGRAM, 0);
     if (ans_sk < 0) {
         perror("socket ans_sk");
@@ -83,25 +111,24 @@ void child_handle(int sk, struct sockaddr_in name, int num)
         if (ret < 0)
             perror("read from data_pipe[my_ip][0]");
         char ans_buffer[BUFSZ] = {0};
-        if (flag[num] == 1) {
+        if (strncmp(child_buf, "exit", sizeof("exit") - 1) == 0)
+            flag = 0;
+        if (flag) {
             write(fd[num], child_buf, strlen(child_buf)); 
-            int ret_read = BUFSZ;
-            while (ret >= (BUFSZ)) {
-                char child_buf[BUFSZ] = {0};
-                usleep(10000);
-                ret_read = read(fd[num], child_buf, BUFSZ);
-                printf("read is %d\n", ret_read);
-                if (ret_read < (BUFSZ))
-                    child_buf[strlen(child_buf) - 1] = 10;
-                ret = sendto(ans_sk, child_buf, ret_read, 0, (struct sockaddr*)&name, sizeof(name));
+            struct pollfd pollfds = {fd[num], POLLIN};
+            for (int j = 0; j < BUFSZ; child_buf[j++] = 0);
+            while (ret = poll(&pollfds, 1, POLL_WAIT) != 0) {
+                for (int j = 0; j < BUFSZ; child_buf[j++] = 0);
+                read(fd[num], child_buf, BUFSZ);
+                ret = sendto(ans_sk, child_buf, BUFSZ, 0, (struct sockaddr*)&name, sizeof(name));
                 if (ret < 0)
                     perror("sendto ans_sk");
-                if (ret_read < (BUFSZ))
-                    break;
             }
+            for (int j = 0; j < BUFSZ; child_buf[j++] = 0);
+            ret = sendto(ans_sk, child_buf, BUFSZ, 0, (struct sockaddr*)&name, sizeof(name));
         }
         else {
-            execution(child_buf, num);
+            execution(child_buf, num, &flag);
             ret = sendto(ans_sk, child_buf, BUFSZ, 0, (struct sockaddr*)&name, sizeof(name));
             if (ret < 0)
                 perror("sendto ans_sk");
@@ -200,10 +227,7 @@ int main()
             if (num < 0) {
                 write(2, "find error\n", sizeof("find error\n"));
             }
-            if (strncmp(buffer_without_pid, "shell", sizeof("shell")-1) == 0)
-                flag[num] = 1;
-            if (flag[num] == 1)
-                buffer_without_pid[strlen(buffer_without_pid)] = 10, buffer_without_pid[strlen(buffer_without_pid)+1] = 0;
+            buffer_without_pid[strlen(buffer_without_pid)] = 10, buffer_without_pid[strlen(buffer_without_pid)+1] = 0;
             ret = write(data_pipe[num][1], buffer_without_pid, BUFSZ); //server sends command to his particular child
             if (ret < 0)
                 perror("write to data_pipe[my_ip][1]");

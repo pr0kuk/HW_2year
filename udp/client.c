@@ -1,5 +1,4 @@
 #include "my_server.h"
-int flag = 0;
 int gen_id()
 {
     return getpid()*rand();
@@ -87,8 +86,20 @@ int main(int argc, char* argv[])
         perror("sending first msg failed");
         exit(1);
     }
+    if (fork() == 0) {
+        while(1) {
+            char buffer_rec[BUFSZ] = {0};
+            buffer_rec[0] = 1;
+            ret = 0;
+            while(buffer_rec[0] != 0 && ret > -1) {
+                ret = recvfrom(sk, buffer_rec, BUFSZ, MSG_DONTWAIT, (struct sockaddr*)&hear, &(int){sizeof(hear)});
+                write(1, buffer_rec, BUFSZ);
+                if (buffer_rec[0] == 0)
+                    printf("\n"); 
+            }
+        }
+    }
     while(1) {
-        
         char buffer[BUFSZ] = {0};
         char sendbuf[BUFSZ + IDSZ] = {0};
         ret = read(1, buffer, BUFSZ);
@@ -103,8 +114,6 @@ int main(int argc, char* argv[])
         if (strncmp(buffer, "broadcast", sizeof("broadcast") - 1) == 0)
             broadcast();
         else {
-            if (strncmp(buffer, "shell", sizeof("shell") - 1) == 0)
-                {flag = 1; printf("FLAG\n");}
             ret = sendto(sk, sendbuf, BUFSZ + IDSZ, 0, (struct sockaddr*)&name, sizeof(name));
             if (ret < 0 || ret > BUFSZ + IDSZ)
                 perror("sendto");
@@ -112,20 +121,6 @@ int main(int argc, char* argv[])
                 printf("Disconnected..\n");
                 exit(0);
             }
-        }
-
-        /* theoretically, the next part can create an infinite loop if get string exactly with length == BUFSZ  */
-        int len = BUFSZ;
-        while(len >= BUFSZ) {
-            char buffer_rec[BUFSZ] = {0};
-            ret = recvfrom(sk, buffer_rec, BUFSZ, 0, (struct sockaddr*)&hear, &(int){sizeof(hear)});
-            len = strlen(buffer_rec);
-            if (ret < 0) {
-                perror("recvfrom rec_sk");
-            }
-            write(1, buffer_rec, BUFSZ);
-            if (len < BUFSZ)
-                break;
         }
     }
     return 0;

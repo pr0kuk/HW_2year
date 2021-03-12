@@ -15,6 +15,7 @@
 #include <sys/socket.h>
 #include <string.h>
 #include <sys/types.h>
+#include <signal.h>
 #include <unistd.h>
 #include <netinet/in.h>
 #include <stdlib.h>
@@ -27,6 +28,7 @@
 #define IDSZ 16
 #define MAX_CLIENTS 10000
 #define CLOCKS_TO_WAIT 1000
+#define POLL_WAIT 10
 #define KEY 9973
 #define PORT 23456
 
