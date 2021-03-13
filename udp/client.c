@@ -57,7 +57,8 @@ int main(int argc, char* argv[])
     }
     struct sockaddr_in name = {AF_INET, htons(PORT), 0};
     struct sockaddr_in hear = {AF_INET, 0, htonl(INADDR_ANY)};
-    int sk, ret, i = 0;
+    struct sockaddr_in check;
+    int sk, ret, i = 0, pid;
     char pid_str[IDSZ];
     char path[PATH_MAX];
     if (inet_aton(argv[1], &name.sin_addr) == 0) {
@@ -81,12 +82,14 @@ int main(int argc, char* argv[])
         perror("bind sk");
         exit(1);
     }
+    getsockname(sk, (struct sockaddr*)&check, &(int){sizeof(check)});
+    printf("client receiver is bind on port %d\n", check.sin_port);
     ret = sendto(sk, pid_str, strlen(pid_str), 0, (struct sockaddr*)&name, sizeof(name));
     if (ret < 0) {
         perror("sending first msg failed");
         exit(1);
     }
-    if (fork() == 0) {
+    if (pid = fork() == 0) {
         while(1) {
             char buffer_rec[BUFSZ] = {0};
             buffer_rec[0] = 1;
@@ -118,6 +121,7 @@ int main(int argc, char* argv[])
             if (ret < 0 || ret > BUFSZ + IDSZ)
                 perror("sendto");
             if (!strncmp(buffer, "quit", sizeof("quit") - 1)) {
+                kill(pid, SIGTERM);
                 printf("Disconnected..\n");
                 exit(0);
             }
