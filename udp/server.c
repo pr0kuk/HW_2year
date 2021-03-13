@@ -2,8 +2,8 @@
 int mas[MAX_CLIENTS];
 int fd[MAX_CLIENTS];
 
-// two clients work incorrect
-
+// check connect numbers, tcsetattr errors, output "hello!"", output print
+ 
 void shell(int num) //starts server's pty
 {
     int ret, resfd, pid;
@@ -66,7 +66,7 @@ void execution(char* child_buf, int num, int* flag) //handles comms from client
         ret = write(fd[num], "exit\n", sizeof("exit\n"));
         if (ret < 0)
             perror("write exit to bash");
-        printf("exit here\n");
+        //printf("exit here\n");
         if (close(fd[num]) < 0)
             perror("close bash descriptor");
         if (strcpy(child_buf, "bash terminated\n") == NULL)
@@ -112,14 +112,15 @@ void child_handle(int sk, struct sockaddr_in name, int num) //server's suboroces
     if (ans_sk < 0) {
         perror("socket ans_sk");
         exit(1);
-    }
+    }    
+    //printf("child initialized, num %d, port %d\n", num, name.sin_port);
     while(1) {
         char child_buf[BUFSZ] = {0};
         ret = read(sk, child_buf, BUFSZ);
         if (ret < 0)
             perror("read from data_pipe[my_ip][0]");
         char ans_buffer[BUFSZ] = {0};
-        printf("read in fork: %s\n", child_buf);
+        //printf("read in fork: %s\n", child_buf);
         if (strncmp(child_buf, "exit", sizeof("exit") - 1) == 0)
             flag = 0;
         if (flag) {
@@ -145,7 +146,7 @@ void child_handle(int sk, struct sockaddr_in name, int num) //server's suboroces
         }
         else {
             execution(child_buf, num, &flag);
-            printf("sent to port %d\n", name.sin_port);
+            //printf("sent to port %d\n", name.sin_port);
             ret = sendto(ans_sk, child_buf, BUFSZ, 0, (struct sockaddr*)&name, sizeof(name));
             if (ret < 0)
                 perror("sendto ans_sk");
@@ -223,9 +224,10 @@ int main()
             if (strcpy(my_ip_str, buffer + sizeof("!connect!") -1) == NULL)
                 perror("strcpy my_ip_str");
             id = atoi(my_ip_str);
-            if (num = connect_id(id) < 0)
+            num = connect_id(id);
+            if (num < 0)
                 write(2, "There is no room for a client or this id is already connected\n", sizeof("There is no room for a client\n"));
-            printf("connect id %d num %d\n", id, num);
+            //printf("connect id %d num %d\n", id, num);
             if (pipe(data_pipe[num]) < 0)
                 perror("pipe");
             pid = fork();
@@ -252,9 +254,9 @@ int main()
                 write(2, "find error\n", sizeof("find error\n"));
                 continue;
             }
-            printf("id %d, num %d\n", id, num);
+            //printf("id %d, num %d\n", id, num);
             buffer_without_pid[strlen(buffer_without_pid)] = 10, buffer_without_pid[strlen(buffer_without_pid)+1] = 0;
-            printf("write to pipe[%d]\n: %s\n", num, buffer_without_pid);
+            //printf("write to pipe[%d]: %s\n", num, buffer_without_pid);
             if (write(data_pipe[num][1], buffer_without_pid, BUFSZ) < 0) //server sends command to his particular child
                 perror("write to data_pipe[my_ip][1]");
         }
