@@ -14,15 +14,24 @@ int log_error(int level, char* fmt, ...)
         perror("vsnprintf");
         return -1;
     }
+    if (level == ERR) {
+        if (sprintf(buf, "%s: %s\n", buf, strerror(errno)) < 0) {
+            perror("sprintf log_error");
+            return -1;
+        }
+    }
     if (fd < 0)
         log_init(NULL);
     if (write(fd, buf, BUFSZ) < 0) {
         perror("write buf to log");
         return -1;
     }
-    if (write(fd, "\n", 1) < 0) {
-        perror("write backslashn to log");
-        return -1;
+    if (level == INFO || level == WARN) {
+        if (write(fd, "\n", 1) < 0) {
+            perror("write backslashn to fd");
+            return -1;
+        }
+
     }
     pos = 0;
     for (int i = 0; i < BUFSZ; buf[i++] = 0);
