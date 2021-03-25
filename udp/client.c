@@ -42,6 +42,11 @@ void broadcast()
     return;
 }
 
+void interrupted(int signum)
+{
+    exit(0);
+}
+
 void cypher(int auth, int my_psd, char* buffer, char* sendbuf)
 {
     int ret = sprintf(sendbuf, "%d!%s", (my_psd * auth) % KEY, buffer);
@@ -61,6 +66,7 @@ int main(int argc, char* argv[])
     int sk, ret, i = 0, pid;
     char pid_str[IDSZ];
     char path[PATH_MAX];
+    //signal(SIGINT, interrupted);
     if (inet_aton(argv[1], &name.sin_addr) == 0) {
         perror("Inputted IP-Adress");
         exit(1);
@@ -89,16 +95,22 @@ int main(int argc, char* argv[])
         perror("sending first msg failed");
         exit(1);
     }
-    if (pid = fork() == 0) {
+    pid = fork();
+    if (pid == 0) {
+        char buffer_rec[BUFSZ] = {0};
         while(1) {
-            char buffer_rec[BUFSZ] = {0};
+            for (int i = 0; i < BUFSZ; buffer_rec[i++] = 0);
             buffer_rec[0] = 1;
             ret = 0;
-            while(buffer_rec[0] != 0 && ret > -1) {
+            while(buffer_rec[0] != 0) {
                 ret = recvfrom(sk, buffer_rec, BUFSZ, MSG_DONTWAIT, (struct sockaddr*)&hear, &(int){sizeof(hear)});
-                write(1, buffer_rec, BUFSZ);
-                if (buffer_rec[0] == 0)
-                    printf("\n"); 
+                if (ret >= 0) {
+                    write(1, buffer_rec, BUFSZ);
+                    if (buffer_rec[0] == 0)
+                        printf("\n");
+                }
+                else
+                    break;
             }
         }
     }
@@ -122,7 +134,7 @@ int main(int argc, char* argv[])
                 perror("sendto");
             if (!strncmp(buffer, "quit", sizeof("quit") - 1)) {
                 kill(pid, SIGTERM);
-                printf("Disconnected..\n");
+                printf("server disconnected\n");
                 exit(0);
             }
         }

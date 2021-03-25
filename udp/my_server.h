@@ -28,8 +28,16 @@
 #define IDSZ 16
 #define MAX_CLIENTS 10000
 #define CLOCKS_TO_WAIT 1000
-#define POLL_WAIT 10
+#define POLL_WAIT 100
 #define KEY 9973
 #define PORT 23456
+
+#define LOG(expr, ...)  \
+    do { \
+    fd = fopen("/home/alexshch/log", "a"); \
+    fprintf(fd, expr, __VA_ARGS__); \
+    fflush(fd); \
+    fclose(fd); \
+    } while(0)
 
 #endif

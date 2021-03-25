@@ -17,6 +17,10 @@ If he accepts quit then he shuts down the process working with this client, prog
 #### Compiling
 	gcc client.c -o client
 	gcc server.c -o server
+	
+#### Building by Makefile
+	make
+	
 #### Running
 	./server
 	
