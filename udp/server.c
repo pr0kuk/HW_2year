@@ -1,6 +1,6 @@
 #include "my_server.h"
 #include "log.h"
-// check connect numbers, tcsetattr errors, output "hello!"", output print
+// tcsetattr errors
  
 int shell() //starts server's pty
 {
@@ -70,18 +70,18 @@ void stop_server(int signum, int** data_pipe)
     exit(0);
 }
 
-int stop_bash(char* child_buf, int fd)
+int stop_bash(char* child_buf, int * fd)
 {
-    if (fd < 3) {
+    if (*fd < 3) {
         pr_info("fd %d < 3", fd);
         return -1;
     }
-    if (write(fd, "exit\n", sizeof("exit\n")) < 0) {
+    if (write(*fd, "exit\n", sizeof("exit\n")) < 0) {
         pr_err("write exit to bash, fd is %d", fd);
         return -1;
     }
     pr_info("bash with fd: %d terminated", fd);
-    if (close(fd) < 0) {
+    if (close(*fd) < 0) {
         pr_err("close bash descriptor");
         return -1;
     }
@@ -89,6 +89,7 @@ int stop_bash(char* child_buf, int fd)
         pr_err("strcpy childbuf bash terminated");
         return -1;
     }
+    *fd = 0;
     return 0;
 }
 
@@ -100,16 +101,14 @@ void execution(char* child_buf, int* flag, int *fd, int ans_sk, struct sockaddr*
     if (strncmp(child_buf, "print", sizeof("print") - 1) == 0)
         pr_info("%s", child_buf + sizeof("print"));
     if (strncmp(child_buf, "quit", sizeof("quit") - 1) == 0) {
-        stop_bash(child_buf, *fd);
+        stop_bash(child_buf, fd);
         exit(0);
     }
     if (strncmp(child_buf, "exit", sizeof("exit") - 1) == 0)
-        stop_bash(child_buf, *fd);
+        stop_bash(child_buf, fd);
     if (strncmp(child_buf, "shell", sizeof("shell") - 1) == 0) {
         *flag = 1;
         *fd = shell();
-        if (strcpy(child_buf, "shell ignited\n") == NULL)
-            pr_err("strcpy childbuf shell inginted");
         read_bash(*fd, ans_sk, name, len);
     }
     if (strncmp(child_buf, "cd", sizeof("cd") - 1) == 0) {
@@ -119,6 +118,10 @@ void execution(char* child_buf, int* flag, int *fd, int ans_sk, struct sockaddr*
                 pr_err("chdir");
             if (strcpy(child_buf, "cd completed\n") == NULL)
                 pr_err("strcpy childbuf cd completed");
+            //pr_info("sent to port %d", name.sin_port);
+            ret = sendto(ans_sk, child_buf, BUFSZ, 0, name, len);
+            if (ret < 0)
+                pr_err("sendto ans_sk");
     }
     if (strncmp(child_buf, "ls", sizeof("ls") - 1) == 0) {
         int lspipe[2], res = dup(1);
@@ -133,7 +136,11 @@ void execution(char* child_buf, int* flag, int *fd, int ans_sk, struct sockaddr*
         dup2(res, 1);
         close(lspipe[1]);
         close(lspipe[0]);
-        close(res);        
+        close(res);
+            //pr_info("sent to port %d", name.sin_port);
+        ret = sendto(ans_sk, child_buf, BUFSZ, 0, name, len);
+        if (ret < 0)
+            pr_err("sendto ans_sk");  
     }
 }
 
@@ -158,7 +165,8 @@ void child_handle(int sk, struct sockaddr_in name) //server's suborocess working
         if (strncmp(child_buf, "exit", sizeof("exit") - 1) == 0)
             flag = 0;
         if (flag) {
-            ret = write(fd, child_buf, strlen(child_buf)); 
+            ret = write(fd, child_buf, strlen(child_buf));
+            child_buf[strlen(child_buf) - 1] = 0;
             pr_info("write to bash: %s", child_buf);
             if (ret < 0)
                 pr_err("write to bash");
@@ -167,10 +175,6 @@ void child_handle(int sk, struct sockaddr_in name) //server's suborocess working
         }
         else {
             execution(child_buf, &flag, &fd, ans_sk, (struct sockaddr*)&name, sizeof(name));
-            //pr_info("sent to port %d", name.sin_port);
-            ret = sendto(ans_sk, child_buf, BUFSZ, 0, (struct sockaddr*)&name, sizeof(name));
-            if (ret < 0)
-                pr_err("sendto ans_sk");
         }
     }
 }
