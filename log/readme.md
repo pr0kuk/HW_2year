@@ -1,12 +1,14 @@
 # Class Task 18 Mar 2021
 #### Description of the program
 Default LOG-Path is "/var/log/server.h"<br>
-There are three LOG-macros
+
+
+#####There are three LOG-macros
 	pr_err (char *)
 	pr_warn(char *)
 	pr_info(char *)
 
-Examples of use:
+#####Examples of use:
 	INPUT:
 	pr_err  ("I'm here!");
 	pr_info ("I'm here!");
