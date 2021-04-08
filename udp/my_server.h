@@ -22,6 +22,7 @@
 #include <netinet/ip.h>
 #include <threads.h>
 #include <arpa/inet.h>
+#include <sys/shm.h>
 
 #define PATH "/tmp/mysock"
 #define BUFSZ 256

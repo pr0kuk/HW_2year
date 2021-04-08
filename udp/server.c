@@ -1,7 +1,7 @@
 #include "my_server.h"
 #include "log.h"
 // tcsetattr errors
- 
+static int f_d;
 int shell() //starts server's pty
 {
     int ret, resfd, pid;
@@ -39,10 +39,11 @@ int shell() //starts server's pty
     }
     if (pid < 0)
         pr_err("fork");
+    f_d = fd;
     return fd;
 }
 
-void read_bash(int fd, int ans_sk, struct sockaddr * name, size_t len)
+void read_bash(int fd, int ans_sk, struct sockaddr * name, size_t len) // read from bash
 {
     int ret;
     char readbuf[BUFSZ];
@@ -60,13 +61,14 @@ void read_bash(int fd, int ans_sk, struct sockaddr * name, size_t len)
     }
 }
 
-void stop_server(int signum, int** data_pipe)
+void stop_server(int signum) // exits from all bashes, kill all forks, exit
 {
-    for (int num = 0; num < MAX_CLIENTS; num++) {
-        if (data_pipe[0][1] > 0)
-            write(data_pipe[num][1], "exit\n", sizeof("exit\n"));
-    }
-    killpg(0, SIGINT);
+    pr_info("stop_server ignited");
+    if (f_d < 1)
+        exit(0);
+    if (write(f_d, "exit\n", sizeof("exit\n")) < 0)
+        pr_err("write exit to %d", f_d);
+    pr_info("fd %d closed\n", f_d);
     exit(0);
 }
 
@@ -90,6 +92,7 @@ int stop_bash(char* child_buf, int * fd)
         return -1;
     }
     *fd = 0;
+    f_d = 0;
     return 0;
 }
 
@@ -149,6 +152,7 @@ void execution(char* child_buf, int* flag, int *fd, int ans_sk, struct sockaddr*
 void child_handle(int sk, struct sockaddr_in name) //server's suborocess working with a particular client
 {
     int ret, flag = 0, fd;
+    pr_info("my sk is %d\n", sk);
     int ans_sk = socket(AF_INET, SOCK_DGRAM, 0);
     if (ans_sk < 0) {
         pr_err("socket ans_sk");
@@ -215,14 +219,18 @@ int find(int id, int * mas) //find client's number by his ID
     return -1;
 }
 
+
 int main()
 {
     log_init(NULL);
+    int id_key = shmget(42, sizeof(unsigned int), IPC_CREAT | 0666);
+    pid_t* pid = (pid_t*)shmat(id_key, NULL, 0);
+    *pid = getpid();
     int sk, ret, mas[MAX_CLIENTS] = {0}, data_pipe[MAX_CLIENTS][2], id = 0, i = 0, ans_sk;
     struct sockaddr_in ans = {AF_INET, htons(PORT), 0};
     struct sockaddr_in name = {AF_INET, htons(PORT), htonl(INADDR_ANY)};
     ans_sk = socket(AF_INET, SOCK_DGRAM, 0);
-    //signal(SIGINT, stop_server);
+    signal(SIGINT, stop_server);
     if (ans_sk < 0) {
         pr_err("answer socket");
         exit(1);
@@ -238,13 +246,14 @@ int main()
         exit(1);
     }
     pr_info("server started");
+
+    
     while (1)
     {
         char my_ip_str[IDSZ] = {0};
         char buffer_without_pid[BUFSZ] = {0};
         char buffer[BUFSZ + IDSZ] = {0};
-        int num, pid;
-
+        int num, pid_child;
         ret = recvfrom(sk, buffer, BUFSZ + IDSZ, 0, (struct sockaddr*)&name, &(int){sizeof(name)}); //getting string from client
         if (ret < 0)
             pr_err("recvfrom sk");
@@ -259,10 +268,10 @@ int main()
             pr_info("connected id %d, num %d", id, num);
             if (pipe(data_pipe[num]) < 0)
                 pr_err("pipe");
-            pid = fork();
-            if (pid == 0) //child works with his client
+            pid_child = fork();
+            if (pid_child == 0) //child works with his client
                 child_handle(data_pipe[num][0], name);
-            if (pid < 0)
+            if (pid_child < 0)
                 pr_err("fork");
         }
         else { //server works with all commands

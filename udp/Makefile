@@ -1,9 +1,10 @@
 OBJECTS = $(SOURCES:.c=.o)
 
 .PHONY: all $(OBJECTS)
-all: server.o client.o
+all: server.o client.o con.o
 	gcc server.o log.c -o server
 	gcc client.o -o client
+	gcc con.o -o con
 
 server.o: server.c
 	gcc server.c -c -o server.o
@@ -13,7 +14,10 @@ client.o: client.c
 	
 log.o: log.c
 	gcc log.c -c -o log.o
-
+	
+con.o: con.c
+	gcc con.c -c -o con.o
+	
 .PHONY: clean
 clean:
 	-rm *.o
