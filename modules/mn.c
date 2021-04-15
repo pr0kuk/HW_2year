@@ -1,4 +1,8 @@
+
+#include <stdio.h>
 #include "field.h"
+
+
 static int sumn(int a, int b);
 
 
@@ -14,4 +18,5 @@ static int sumn(int a, int b)
 
 __attribute__((constructor))static void my_load() {
     register_field(&mn);
+    printf("registered mn field %p\n", &mn);
 }
