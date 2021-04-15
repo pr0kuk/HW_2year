@@ -1,5 +1,7 @@
 #include "my_server.h"
 #include "log.h"
+
+//\n at client doesnt work always
 int decypher(char* buffer, char* my_ip_str, char* buffer_without_pid) //gets from client string client's id and command
 {
     int i = 0;
@@ -14,6 +16,24 @@ int decypher(char* buffer, char* my_ip_str, char* buffer_without_pid) //gets fro
     if (strcpy(buffer_without_pid, buffer + i) == NULL)
         pr_err("strcpy buffer_without_pid");
     return atoi(my_ip_str);
+}
+
+int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
+{
+
+    //struct sockaddr_in name = {AF_INET, htons(PORT), htonl(INADDR_ANY)};
+    name->sin_family = AF_INET;
+    name->sin_port = htons(PORT); // htons, e.g. htons(10000)
+    name->sin_addr.s_addr = htonl(INADDR_ANY); // htonl, ntohl
+    *sk = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sk < 0) {
+        pr_err("socket sk");
+        exit(1);
+    }
+    if (bind(*sk, (struct sockaddr*)name, sizeof(*name)) < 0) {
+        pr_err("bind sk");
+        exit(1);
+    }
 }
 
 int connect_id(int id, int * mas) //remembers client's ID and gives him his number
@@ -35,9 +55,17 @@ int find(int id, int * mas) //find client's number by his ID
     return -1;
 }
 
-int server_handler(char* buffer, int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name)
+int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name)
 {
-    char my_ip_str[BUFSZ];
+    int ret;
+    char buffer[BUFSZ + IDSZ] = {0};
+    ret = recvfrom(*sk, buffer, BUFSZ + IDSZ, 0, (struct sockaddr*)name, &(int){sizeof(name)}); //getting string from client
+    if (ret < 0)
+        pr_err("recvfrom sk");
+    pr_info("received %s", buffer);
+    if (strcmp(buffer, "!hello!") == 0) //server receives broadcast
+        broadcast(*ans_sk, ans_name, buffer);
+    char my_ip_str[BUFSZ] ={0};
     memset(my_ip_str, 0, BUFSZ);
     if (strncmp(buffer, "!connect!", sizeof("!connect!") - 1) == 0) { // is it a first msg of client? then remember him, gave him a number and create subprocess for his commands
         if (strcpy(my_ip_str, buffer + sizeof("!connect!") -1) == NULL)
@@ -52,7 +80,8 @@ int server_handler(char* buffer, int* num, int* mas, int (*data_pipe)[2], struct
         if (pipe(data_pipe[int_num]) < 0)
             pr_err("pipe");
         pid_t pid_child = fork();
-        if (pid_child == 0) //child works with his client
+        pr_info("pid_child is %d", pid_child);
+        if (pid_child == 0)
             child_handle(data_pipe[*num][0], *name);
         if (pid_child < 0)
             pr_err("fork");
@@ -74,7 +103,7 @@ int server_handler(char* buffer, int* num, int* mas, int (*data_pipe)[2], struct
         }
         pr_info("found id %d, num %d", id, *num);
         buffer_without_pid[strlen(buffer_without_pid)] = 10, buffer_without_pid[strlen(buffer_without_pid)+1] = 0;
-        //pr_info("write to pipe[%d]: %s\n", num, buffer_without_pid);
+        pr_info("write to pipe[%d]: %s\n", *num, buffer_without_pid);
         if (write(data_pipe[*num][1], buffer_without_pid, BUFSZ) < 0) //server sends command to his particular child
             pr_err("write to data_pipe[my_ip][1]");
         if (strncmp(buffer_without_pid, "quit\n", sizeof("quit\n")) == 0) {

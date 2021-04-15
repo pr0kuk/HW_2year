@@ -7,16 +7,23 @@ void set_flag(int signum)
     fork_flag = 1;
 }
 
-
-int server_handler(char* buffer, int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name)
+int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
 {
-    signal(SIGUSR1, set_flag);
-    int sk = socket(AF_INET, SOCK_STREAM, 0);
-    if (sk < 0)
+    *sk = socket(AF_INET, SOCK_STREAM, 0);
+    if (*sk < 0)
     {
         perror("socket");
         return 1;
     }
+    name->sin_family = AF_INET;
+    name->sin_port = htons(23456); // htons, e.g. htons(10000)
+    name->sin_addr.s_addr = inet_addr("127.0.0.1"); // htonl, ntohl
+    signal(SIGUSR1, set_flag);
+}
+
+int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name)
+{
+
     pid_t pid_parent = getpid();
     while(1) {
         if (fork_flag) {
@@ -24,16 +31,16 @@ int server_handler(char* buffer, int* num, int* mas, int (*data_pipe)[2], struct
             pid_t pid_child = fork();
             if (pid_child == 0)
             {
-                if (bind(sk, (struct sockaddr*)&name, sizeof(name)) < 0)
+                if (bind(*sk, (struct sockaddr*)&name, sizeof(name)) < 0)
                 {
                     perror("bind");
-                    close(sk);
+                    close(*sk);
                     return 1;
                 }
-                if (listen(sk, 20))
+                if (listen(*sk, 20))
                 {
                     perror("listen");
-                    close(sk);
+                    close(*sk);
                     return 1;
                 }
                 kill(pid_parent, SIGUSR1);
@@ -42,7 +49,7 @@ int server_handler(char* buffer, int* num, int* mas, int (*data_pipe)[2], struct
                     int client_sk = 0, ret = 0;
                     char buffer[BUFSZ] = {0};
                     memset(buffer, 0, BUFSZ);
-                    client_sk = accept(sk, NULL, NULL);
+                    client_sk = accept(*sk, NULL, NULL);
                     if (client_sk < 0)
                     {
                         perror("accept");

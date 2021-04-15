@@ -162,13 +162,13 @@ void execution(char* child_buf, int* flag, int *fd, int ans_sk, struct sockaddr*
 void child_handle(int sk, struct sockaddr_in name) //server's suborocess working with a particular client
 {
     int ret, flag = 0, fd;
-    pr_info("my sk is %d\n", sk);
+    pr_info("my sk is %d", sk);
     int ans_sk = socket(AF_INET, SOCK_DGRAM, 0);
     if (ans_sk < 0) {
         pr_err("socket ans_sk");
         exit(1);
     }    
-    //pr_info("child initialized, num %d, port %d", num, name.sin_port);
+    pr_info("child initialized");
     while(1) {
         char child_buf[BUFSZ] = {0};
         memset(child_buf, 0, BUFSZ);
@@ -196,6 +196,13 @@ void child_handle(int sk, struct sockaddr_in name) //server's suborocess working
     }
 }
 
+int broadcast(int ans_sk, struct sockaddr_in* name, char* buffer)
+{
+        if (sendto(ans_sk, "", 1, 0, (struct sockaddr*)&name, sizeof(name)) != 1)
+            pr_err("answer to broadcast");
+        memset(buffer, 0, BUFSZ);
+}
+
 
 int main()
 {
@@ -205,43 +212,18 @@ int main()
     pid_t* pid = (pid_t*)shmat(id_key, NULL, 0);
     *pid = getpid();
     int sk, ret, mas[MAX_CLIENTS] = {0}, data_pipe[MAX_CLIENTS][2], id = 0, i = 0, ans_sk;
-    struct sockaddr_in ans = {AF_INET, htons(PORT), 0};
-    struct sockaddr_in name = {AF_INET, htons(PORT), htonl(INADDR_ANY)};
-    ans_sk = socket(AF_INET, SOCK_DGRAM, 0);
     signal(SIGINT, stop_server);
+    struct sockaddr_in ans = {AF_INET, htons(PORT), 0};
+    struct sockaddr_in name;
+    pr_info("server started");
+    ans_sk = socket(AF_INET, SOCK_DGRAM, 0);
     if (ans_sk < 0) {
         pr_err("answer socket");
         exit(1);
     }
-    sk = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sk < 0) {
-        pr_err("socket sk");
-        exit(1);
-    }
-    ret = bind(sk, (struct sockaddr*)&name, sizeof(name));
-    if (ret < 0) {
-        pr_err("bind sk");
-        exit(1);
-    }
-    pr_info("server started");
-
-
+    settings(&sk, &ans_sk, &name);
     while (1)
-    {
-        char buffer[BUFSZ + IDSZ] = {0};
-        ret = recvfrom(sk, buffer, BUFSZ + IDSZ, 0, (struct sockaddr*)&name, &(int){sizeof(name)}); //getting string from client
-        if (ret < 0)
-            pr_err("recvfrom sk");
-        pr_info("received %s", buffer);
-        if (strcmp(buffer, "!hello!") == 0) { //server receives broadcast
-            ret = sendto(ans_sk, "", 1, 0, (struct sockaddr*)&name, sizeof(name));
-            if (ret != 1)
-                pr_err("answer to broadcast");
-            continue;
-        }
-        else
-            server_handler(buffer, &num, mas, data_pipe, &name);
-    }
+        server_handler(&num, mas, data_pipe, &name, &sk, &ans_sk, &ans);
     return 0; 
 }
 
