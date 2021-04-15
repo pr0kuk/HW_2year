@@ -48,13 +48,15 @@ void read_bash(int fd, int ans_sk, struct sockaddr * name, size_t len) // read f
     int ret;
     char readbuf[BUFSZ];
     struct pollfd pollfds = {fd, POLLIN};
-    for (int j = 0; j < BUFSZ; readbuf[j++] = 0);
+    //for (int j = 0; j < BUFSZ; readbuf[j++] = 0); //memset
+    memset(readbuf, 0, BUFSZ);
     while (poll(&pollfds, 1, POLL_WAIT) != 0) {
-        for (int j = 0; j < BUFSZ; readbuf[j++] = 0);
+        //for (int j = 0; j < BUFSZ; readbuf[j++] = 0);
+        memset(readbuf, 0, BUFSZ);
         ret = read(fd, readbuf, BUFSZ);
         if (ret < 0)
             pr_err("read from bash");
-        //pr_info("to send: %s", readbuf);
+        pr_info("to send: %s", readbuf);
         ret = sendto(ans_sk, readbuf, BUFSZ, 0, name, len);
         if (ret < 0)
             perror("sendto ans_sk");
@@ -119,14 +121,17 @@ void execution(char* child_buf, int* flag, int *fd, int ans_sk, struct sockaddr*
             pr_info("chdir to %s", child_buf + sizeof("cd"));
             if (chdir(child_buf + sizeof("cd")) == -1)
                 pr_err("chdir");
+            memset(child_buf, 0, BUFSZ);
             if (strcpy(child_buf, "cd completed\n") == NULL)
                 pr_err("strcpy childbuf cd completed");
             //pr_info("sent to port %d", name.sin_port);
             ret = sendto(ans_sk, child_buf, BUFSZ, 0, name, len);
+            pr_info("sent %s\n", child_buf);
             if (ret < 0)
                 pr_err("sendto ans_sk");
     }
     if (strncmp(child_buf, "ls", sizeof("ls") - 1) == 0) {
+        memset(child_buf, 0, BUFSZ);
         int lspipe[2], res = dup(1);
         if (pipe(lspipe) < 0)
             pr_err("lspipe");
@@ -136,12 +141,17 @@ void execution(char* child_buf, int* flag, int *fd, int ans_sk, struct sockaddr*
             pr_err("execlp ls");
         if (read(lspipe[0], child_buf, BUFSZ) < 0)
             pr_err("read lspipe");
-        dup2(res, 1);
-        close(lspipe[1]);
-        close(lspipe[0]);
-        close(res);
+        if (dup2(res, 1) < 0)
+            pr_err("dup2(res, 1)");
+        if (close(lspipe[1]) < 0)
+            pr_err("close lspipe[1]");
+        if (close(lspipe[0]) < 0)
+            pr_err("close lspipe[0]");
+        if (close(res) < 0)
+            pr_err("close res");
             //pr_info("sent to port %d", name.sin_port);
         ret = sendto(ans_sk, child_buf, BUFSZ, 0, name, len);
+        pr_info("sent %s\n", child_buf);
         if (ret < 0)
             pr_err("sendto ans_sk");  
     }
@@ -161,11 +171,13 @@ void child_handle(int sk, struct sockaddr_in name) //server's suborocess working
     //pr_info("child initialized, num %d, port %d", num, name.sin_port);
     while(1) {
         char child_buf[BUFSZ] = {0};
+        memset(child_buf, 0, BUFSZ);
         ret = read(sk, child_buf, BUFSZ);
         if (ret < 0)
             pr_err("read from data_pipe[my_ip][0]");
         char ans_buffer[BUFSZ] = {0};
-        //pr_info("read in fork: %s", child_buf);
+        memset(ans_buffer, 0, BUFSZ);
+        pr_info("read in fork: %s", child_buf);
         if (strncmp(child_buf, "exit", sizeof("exit") - 1) == 0)
             flag = 0;
         if (flag) {
@@ -175,7 +187,8 @@ void child_handle(int sk, struct sockaddr_in name) //server's suborocess working
             if (ret < 0)
                 pr_err("write to bash");
             read_bash(fd, ans_sk, (struct sockaddr*)&name, sizeof(name));
-            for (int j = 0; j < BUFSZ; child_buf[j++] = 0);
+            //for (int j = 0; j < BUFSZ; child_buf[j++] = 0);
+            memset(child_buf, 0, BUFSZ);
         }
         else {
             execution(child_buf, &flag, &fd, ans_sk, (struct sockaddr*)&name, sizeof(name));
@@ -183,47 +196,12 @@ void child_handle(int sk, struct sockaddr_in name) //server's suborocess working
     }
 }
 
-// ioctl
-int decypher(char* buffer, char* my_ip_str, char* buffer_without_pid) //gets from client string client's id and command
-{
-    int i = 0;
-    while (buffer[i++] != '!') {
-        if (buffer[i] != '!' && buffer[i] != '-' && (buffer[i] < '0' || buffer[i] > '9')) {
-                //pr_info("%c", buffer[i]); 
-                return -1;
-            }
-    }
-    if (strncpy(my_ip_str, buffer, i - 1) == NULL)
-        pr_err("strncpy my_ip_str");
-    if (strcpy(buffer_without_pid, buffer + i) == NULL)
-        pr_err("strcpy buffer_without_pid");
-    return atoi(my_ip_str);
-}
-
-int connect_id(int id, int* mas) //remembers client's ID and gives him his number
-{
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (mas[i] == 0 || mas[i] == id) {
-            mas[i] = id;
-            return i;
-        }
-    }
-    return -1;
-}
-
-int find(int id, int * mas) //find client's number by his ID
-{
-    for (int i = 0; i < MAX_CLIENTS; i++)
-        if (mas[i] == id)
-            return i;
-    return -1;
-}
-
 
 int main()
 {
+    int num = 0;
     log_init(NULL);
-    int id_key = shmget(42, sizeof(unsigned int), IPC_CREAT | 0666);
+    int id_key = shmget(SHMKEY, sizeof(unsigned int), IPC_CREAT | 0666);
     pid_t* pid = (pid_t*)shmat(id_key, NULL, 0);
     *pid = getpid();
     int sk, ret, mas[MAX_CLIENTS] = {0}, data_pipe[MAX_CLIENTS][2], id = 0, i = 0, ans_sk;
@@ -247,64 +225,23 @@ int main()
     }
     pr_info("server started");
 
-    
+
     while (1)
     {
-        char my_ip_str[IDSZ] = {0};
-        char buffer_without_pid[BUFSZ] = {0};
         char buffer[BUFSZ + IDSZ] = {0};
-        int num, pid_child;
         ret = recvfrom(sk, buffer, BUFSZ + IDSZ, 0, (struct sockaddr*)&name, &(int){sizeof(name)}); //getting string from client
         if (ret < 0)
             pr_err("recvfrom sk");
         pr_info("received %s", buffer);
-        if (strncmp(buffer, "!connect!", sizeof("!connect!") - 1) == 0) { // is it a first msg of client? then remember him, gave him a number and create subprocess for his commands
-            if (strcpy(my_ip_str, buffer + sizeof("!connect!") -1) == NULL)
-                pr_err("strcpy my_ip_str");
-            id = atoi(my_ip_str);
-            num = connect_id(id, mas);
-            if (num < 0)
-                write(2, "There is no room for a client or this id is already connected\n", sizeof("There is no room for a client\n"));
-            pr_info("connected id %d, num %d", id, num);
-            if (pipe(data_pipe[num]) < 0)
-                pr_err("pipe");
-            pid_child = fork();
-            if (pid_child == 0) //child works with his client
-                child_handle(data_pipe[num][0], name);
-            if (pid_child < 0)
-                pr_err("fork");
+        if (strcmp(buffer, "!hello!") == 0) { //server receives broadcast
+            ret = sendto(ans_sk, "", 1, 0, (struct sockaddr*)&name, sizeof(name));
+            if (ret != 1)
+                pr_err("answer to broadcast");
+            continue;
         }
-        else { //server works with all commands
-            if (strcmp(buffer, "!hello!") == 0) { //server receives broadcast
-                ret = sendto(ans_sk, "", 1, 0, (struct sockaddr*)&name, sizeof(name));
-                if (ret != 1)
-                    pr_err("answer to broadcast");
-                continue;
-            }
-            //pr_info("buffer before id %s", buffer);
-            id = decypher(buffer, my_ip_str, buffer_without_pid);
-            if (id == -1) {
-                write(2, "id cannot be recognized\n", sizeof("id cannot be recognized\n"));
-                continue;
-            }
-            //pr_info("id %d", id);
-            num = find(id, mas);
-            if (num < 0) {
-                write(2, "find error\n", sizeof("find error\n"));
-                continue;
-            }
-            pr_info("found id %d, num %d", id, num);
-            buffer_without_pid[strlen(buffer_without_pid)] = 10, buffer_without_pid[strlen(buffer_without_pid)+1] = 0;
-            //pr_info("write to pipe[%d]: %s\n", num, buffer_without_pid);
-            if (write(data_pipe[num][1], buffer_without_pid, BUFSZ) < 0) //server sends command to his particular child
-                pr_err("write to data_pipe[my_ip][1]");
-            if (strncmp(buffer_without_pid, "quit\n", sizeof("quit\n")) == 0) {
-                close(data_pipe[num][0]);
-                close(data_pipe[num][1]);
-                mas[num] = 0;
-                pr_info("%d closed", num);
-            }
-        }
+        else
+            server_handler(buffer, &num, mas, data_pipe, &name);
     }
     return 0; 
 }
+

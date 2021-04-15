@@ -99,10 +99,13 @@ int main(int argc, char* argv[])
     if (pid == 0) {
         char buffer_rec[BUFSZ] = {0};
         while(1) {
-            for (int i = 0; i < BUFSZ; buffer_rec[i++] = 0);
+            //for (int i = 0; i < BUFSZ; buffer_rec[i++] = 0);
+            memset(buffer_rec, 0, BUFSZ);
             buffer_rec[0] = 1;
             ret = 0;
             while(buffer_rec[0] != 0) {
+                memset(buffer_rec, 0, BUFSZ);
+                //for (int i = 0; i < BUFSZ; buffer_rec[i++] = 0);
                 ret = recvfrom(sk, buffer_rec, BUFSZ, MSG_DONTWAIT, (struct sockaddr*)&hear, &(int){sizeof(hear)});
                 if (ret >= 0) {
                     write(1, buffer_rec, BUFSZ);
@@ -117,7 +120,9 @@ int main(int argc, char* argv[])
     while(1) {
         char buffer[BUFSZ] = {0};
         char sendbuf[BUFSZ + IDSZ] = {0};
-        ret = read(1, buffer, BUFSZ);
+        memset(sendbuf, 0, BUFSZ + IDSZ);
+        memset(buffer, 0, BUFSZ);
+        ret = read(STDIN_FILENO, buffer, BUFSZ);
         if (ret < 0 || ret > BUFSZ) {
             perror("read");
             exit(1);
@@ -130,6 +135,7 @@ int main(int argc, char* argv[])
             broadcast();
         else {
             ret = sendto(sk, sendbuf, BUFSZ + IDSZ, 0, (struct sockaddr*)&name, sizeof(name));
+            //printf("sent %s\n", sendbuf);
             if (ret < 0 || ret > BUFSZ + IDSZ)
                 perror("sendto");
             if (!strncmp(buffer, "quit", sizeof("quit") - 1)) {

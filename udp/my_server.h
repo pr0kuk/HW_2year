@@ -23,6 +23,7 @@
 #include <threads.h>
 #include <arpa/inet.h>
 #include <sys/shm.h>
+#include <dlfcn.h>
 
 #define PATH "/tmp/mysock"
 #define BUFSZ 256
@@ -32,5 +33,9 @@
 #define POLL_WAIT 100
 #define KEY 9973
 #define PORT 23456
+#define SHMKEY 42
+
+extern void child_handle(int sk, struct sockaddr_in name);
+extern int server_handler(char* buffer, int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name);
 
 #endif
