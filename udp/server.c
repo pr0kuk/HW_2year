@@ -43,7 +43,7 @@ int shell() //starts server's pty
     return fd;
 }
 
-void read_bash(int fd, int ans_sk, struct sockaddr * name, size_t len) // read from bash
+void read_bash(int fd, int* bash_pipe) // read from bash
 {
     int ret;
     char readbuf[BUFSZ];
@@ -57,10 +57,12 @@ void read_bash(int fd, int ans_sk, struct sockaddr * name, size_t len) // read f
         if (ret < 0)
             pr_err("read from bash");
         pr_info("to send: %s", readbuf);
-        ret = sendto(ans_sk, readbuf, BUFSZ, 0, name, len);
-        if (ret < 0)
-            perror("sendto ans_sk");
+        write(bash_pipe[1], readbuf, BUFSZ);
+        //ret = sendto(ans_sk, readbuf, BUFSZ, 0, name, len);
+        //if (ret < 0)
+           // perror("sendto ans_sk");
     }
+    close(bash_pipe[1]);
 }
 
 void stop_server(int signum) // exits from all bashes, kill all forks, exit
@@ -100,7 +102,7 @@ int stop_bash(char* child_buf, int * fd)
 
 
 
-void execution(char* child_buf, int* flag, int *fd, int ans_sk, struct sockaddr* name, size_t len) //handles comms from client
+void execution(char* child_buf, int* flag, int *fd) //handles comms from client
 {
     int ret;
     if (strncmp(child_buf, "print", sizeof("print") - 1) == 0)
@@ -114,7 +116,8 @@ void execution(char* child_buf, int* flag, int *fd, int ans_sk, struct sockaddr*
     if (strncmp(child_buf, "shell", sizeof("shell") - 1) == 0) {
         *flag = 1;
         *fd = shell();
-        read_bash(*fd, ans_sk, name, len);
+        memset(child_buf, 0, BUFSZ);
+        strncpy(child_buf, "shell", sizeof("shell") - 1);
     }
     if (strncmp(child_buf, "cd", sizeof("cd") - 1) == 0) {
             child_buf[strlen(child_buf) - 1] = 0;
@@ -125,7 +128,7 @@ void execution(char* child_buf, int* flag, int *fd, int ans_sk, struct sockaddr*
             if (strcpy(child_buf, "cd completed\n") == NULL)
                 pr_err("strcpy childbuf cd completed");
             //pr_info("sent to port %d", name.sin_port);
-            ret = sendto(ans_sk, child_buf, BUFSZ, 0, name, len);
+            //ret = sendto(ans_sk, child_buf, BUFSZ, 0, name, len);
             pr_info("sent %s\n", child_buf);
             if (ret < 0)
                 pr_err("sendto ans_sk");
@@ -150,10 +153,10 @@ void execution(char* child_buf, int* flag, int *fd, int ans_sk, struct sockaddr*
         if (close(res) < 0)
             pr_err("close res");
             //pr_info("sent to port %d", name.sin_port);
-        ret = sendto(ans_sk, child_buf, BUFSZ, 0, name, len);
+        //ret = sendto(ans_sk, child_buf, BUFSZ, 0, name, len);
         pr_info("sent %s\n", child_buf);
-        if (ret < 0)
-            pr_err("sendto ans_sk");  
+       // if (ret < 0)
+          //  pr_err("sendto ans_sk");  
     }
 }
 
@@ -186,12 +189,33 @@ void child_handle(int sk, struct sockaddr_in name) //server's suborocess working
             pr_info("write to bash: %s", child_buf);
             if (ret < 0)
                 pr_err("write to bash");
-            read_bash(fd, ans_sk, (struct sockaddr*)&name, sizeof(name));
+            int bash_pipe[2];
+            pipe(bash_pipe);
+            read_bash(fd, bash_pipe);
+            ret = 1;
+            while(ret > 0) {
+                read(bash_pipe[0], child_buf, BUFSZ);
+                ret = sendto(ans_sk, child_buf, BUFSZ, 0, (struct sockaddr*)&name, sizeof(name));
+            }
+            close(bash_pipe[0]);
             //for (int j = 0; j < BUFSZ; child_buf[j++] = 0);
             memset(child_buf, 0, BUFSZ);
         }
         else {
-            execution(child_buf, &flag, &fd, ans_sk, (struct sockaddr*)&name, sizeof(name));
+            execution(child_buf, &flag, &fd);
+            if (strncmp(child_buf, "shell", sizeof("shell") - 1)) {
+                int bash_pipe[2];
+                pipe(bash_pipe);
+                read_bash(fd, bash_pipe);
+                ret = 1;
+                while(ret > 0) {
+                    read(bash_pipe[0], child_buf, BUFSZ);
+                    ret = sendto(ans_sk, child_buf, BUFSZ, 0, (struct sockaddr*)&name, sizeof(name));
+                }
+                close(bash_pipe[0]);
+            }
+            ret = sendto(ans_sk, child_buf, BUFSZ, 0, (struct sockaddr*)&name, sizeof(name));
+            pr_info("sent in child_handle: %s");
         }
     }
 }

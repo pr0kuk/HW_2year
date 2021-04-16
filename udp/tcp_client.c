@@ -5,6 +5,7 @@ int main(int argc, char* argv[])
 {
     struct sockaddr_in name = {0};
     int sk, ret;
+    char port_str[BUFSZ] = {0};
     char buffer[BUFSZ] = {0};
     sk = socket(AF_INET, SOCK_STREAM, 0);
     if (sk < 0)
@@ -15,7 +16,24 @@ int main(int argc, char* argv[])
     name.sin_family = AF_INET;
     //strncpy(name.sun_path, PATH, sizeof(PATH));
     name.sin_port = htons(23456);
-    name.sin_addr.s_addr = inet_addr(argv[1]);
+    if (inet_aton(argv[1], &name.sin_addr) == 0) {
+        perror("Inputted IP-Adress");
+        exit(1);
+    }
+    ret = connect(sk, (struct sockaddr*)&name, sizeof(name));
+    if (ret < 0)
+    {
+        perror("connect");
+        close(sk);
+        return 1;
+    }
+    write(sk, "hello", sizeof("hello"));
+    sleep(1);
+    read(sk, port_str, BUFSZ);
+    printf("%s\n", port_str);
+    close(sk);
+    name.sin_port = (atoi(port_str));
+    sk = socket(AF_INET, SOCK_STREAM, 0);
     ret = connect(sk, (struct sockaddr*)&name, sizeof(name));
     if (ret < 0)
     {
@@ -24,7 +42,7 @@ int main(int argc, char* argv[])
         return 1;
     }
     while(1) {
-        ret = read(1, buffer, BUFSZ);
+        ret = read(STDIN_FILENO, buffer, BUFSZ);
         if (ret < 0 || ret > BUFSZ)
         {
             perror("read");
@@ -36,6 +54,9 @@ int main(int argc, char* argv[])
             perror("write");
             exit(1);
         }
+        ret = read(sk, buffer, BUFSZ);
+        ret = write(STDOUT_FILENO, buffer, BUFSZ);
+        memset(buffer, 0, BUFSZ);
     }
     return 0;
 }
