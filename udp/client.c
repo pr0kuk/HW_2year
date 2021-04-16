@@ -4,7 +4,7 @@ int gen_id()
     return getpid()*rand();
 }
 
-void broadcast()
+void broadcast_client()
 {
     char serv_ip[1];
     int ret, ans_sk, i;
@@ -132,13 +132,13 @@ int main(int argc, char* argv[])
         if (ret < 0)
             perror("sprintf");
         if (strncmp(buffer, "broadcast", sizeof("broadcast") - 1) == 0)
-            broadcast();
+            broadcast_client();
         else {
             ret = sendto(sk, sendbuf, BUFSZ + IDSZ, 0, (struct sockaddr*)&name, sizeof(name));
             //printf("sent %s\n", sendbuf);
             if (ret < 0 || ret > BUFSZ + IDSZ)
                 perror("sendto");
-            if (!strncmp(buffer, "quit", sizeof("quit") - 1)) {
+            if (strncmp(buffer, "quit", sizeof("quit") - 1)) {
                 kill(pid, SIGTERM);
                 printf("server disconnected\n");
                 exit(0);

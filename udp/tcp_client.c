@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
         return 1;
     }
     write(sk, "hello", sizeof("hello"));
-    sleep(1);
+    //sleep(1);
     read(sk, port_str, BUFSZ);
     printf("%s\n", port_str);
     close(sk);
@@ -54,9 +54,30 @@ int main(int argc, char* argv[])
             perror("write");
             exit(1);
         }
-        ret = read(sk, buffer, BUFSZ);
-        ret = write(STDOUT_FILENO, buffer, BUFSZ);
+
+        if (strncmp(buffer, "quit", sizeof("quit") - 1) == 0) {
+            printf("buffer: %s\n", buffer);
+            //kill(pid, SIGTERM);
+            printf("server disconnected\n");
+            exit(0);
+        }
         memset(buffer, 0, BUFSZ);
+        int retread = 1;
+        while(retread > 0) {
+            retread = read(sk, buffer, BUFSZ);
+            if (retread < 0 || ret > BUFSZ)
+            {
+                perror("read");
+                exit(1);
+            }
+            ret = write(STDOUT_FILENO, buffer, BUFSZ);
+            if (ret < 0 || ret > BUFSZ)
+            {
+                perror("write");
+                exit(1);
+            }
+            memset(buffer, 0, BUFSZ);
+        }
     }
     return 0;
 }

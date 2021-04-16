@@ -12,11 +12,7 @@ If he accepts ls then he prints<br>
 If he accepts cd then he change current directory<br>
 If he accepts shell then he started pty<br>
 If he accepts quit then he shuts down the process working with this client, program-client returns 0.<br>
-
-
-#### Compiling
-	gcc client.c -o client
-	gcc server.c log.c -o server
+Before using you need to choose work mode: tcp or udp  (put -ltcpl or -ludp in makefile for gcc server.o... and gcc server.c)<br>
 	
 #### Building by Makefile
 	make

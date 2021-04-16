@@ -2,6 +2,16 @@
 #include "log.h"
 static int fork_flag = 1;
 
+int send_info(int sk, char* buffer)
+{
+    if (write(sk, buffer, BUFSZ) < 0) {
+        pr_err("send_info");
+        exit(1);
+    }
+    pr_info("send_info: %s", buffer);
+    memset(buffer, 0, BUFSZ);
+}
+
 void set_flag(int signum)
 {
     fork_flag = 1;
@@ -19,7 +29,7 @@ int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
     name->sin_port = htons(PORT); // htons, e.g. htons(10000)
     name->sin_addr.s_addr = inet_addr("127.0.0.1"); // htonl, ntohl
     signal(SIGUSR1, set_flag);
-    pr_info("sk is %d", *sk);
+    //pr_info("sk is %d", *sk);
     if (bind(*sk, (struct sockaddr*)name, sizeof(*name)) < 0)
     {
         perror("bind_1");
@@ -36,7 +46,7 @@ int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
 
 int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name)
 {
-    int client_sk = 0, ret = 0;
+    int client_sk = 0, ret = 0, fd = 0, flag = 0;
     char buffer[BUFSZ] = {0};
     char port_str[BUFSZ] = {0};
     memset(buffer, 0, BUFSZ);
@@ -79,17 +89,18 @@ int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* 
             pr_err("accept");
             exit(1);
         }
+        pr_info("fork_client_sk is %d", fork_client_sk);
         while (1)
         {
-
             ret = read(fork_client_sk, buffer, BUFSZ);
             if (ret < 0 || ret > BUFSZ) {
                 pr_err("read");
                 exit(1);
             }
+            buffer[strlen(buffer)-1] = 0;//, buffer[strlen(buffer)+1] = 0;
             pr_info("to execute: %s", buffer);
-            execution(buffer, NULL, NULL);
-            write(fork_client_sk, buffer, BUFSZ);
+            execution(buffer, &flag, &fd, fork_client_sk);
+            //write(fork_client_sk, buffer, BUFSZ);
             memset(buffer,0,BUFSZ);
         }
     }
