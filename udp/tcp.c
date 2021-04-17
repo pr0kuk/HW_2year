@@ -54,7 +54,7 @@ int fork_settings()
 
 }
 
-int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name)
+int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name, void (*execution)(char*, int*, int *, int, struct sockaddr*))
 {
     int client_sk = 0, ret = 0, fd = 0, flag = 0;
     char buffer[BUFSZ] = {0};

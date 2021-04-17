@@ -233,12 +233,12 @@ int main(int argc, char* argv[])
     *(void **) (&settings) = dlsym(sl, "settings");
     //settings(&sk, &ans_sk, &name);
     (*settings)(&sk, &ans_sk, &name);
-    void (*server_handler)(int *, int*, int(*)[2], struct sockaddr_in*, int*, int*, struct sockaddr_in*);
+    void (*server_handler)(int *, int*, int(*)[2], struct sockaddr_in*, int*, int*, struct sockaddr_in*, void (*)(char*, int*, int *, int, struct sockaddr*);
     *(void **) (&server_handler) = dlsym(sl, "server_handler");
-    
+    void* (*executionf)(char*, int*, int *, int, struct sockaddr*) = execution;
     while (1) {
         //server_handler(&num, mas, data_pipe, &name, &sk, &ans_sk, &ans);
-        (*server_handler)(&num, mas, data_pipe, &name, &sk, &ans_sk, &ans);
+        (*server_handler)(&num, mas, data_pipe, &name, &sk, &ans_sk, &ans, executionf);
     }
     return 0; 
 }

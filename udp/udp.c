@@ -90,7 +90,7 @@ void child_handle(int data_pipe_0, struct sockaddr* name) //server's suborocess 
     }
 }
 
-int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name)
+int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name, int (*execution))
 {
     int ret;
     char buffer[BUFSZ + IDSZ] = {0};
