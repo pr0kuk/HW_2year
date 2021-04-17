@@ -18,6 +18,18 @@ int decypher(char* buffer, char* my_ip_str, char* buffer_without_pid) //gets fro
     return atoi(my_ip_str);
 }
 
+
+int send_info(int sk, char* buffer, struct sockaddr* name)
+{
+    pr_info("send info:\n%s", buffer);
+    pr_info("sk is %d", sk);
+    pr_info("name.sin_family=%d, name.sin_port=%d,name.sin_addr.s_addr=%d", ((struct sockaddr_in*)name)->sin_family, ((struct sockaddr_in*)name)->sin_port, ((struct sockaddr_in*)name)->sin_addr.s_addr);
+    int ret = sendto(sk, buffer, BUFSZ, 0, name, sizeof(*name));
+    memset(buffer, 0, BUFSZ);
+    //ret = sendto(sk, buffer, BUFSZ, 0, name, sizeof(*name));
+    return 0;
+}
+
 int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
 {
 
@@ -55,6 +67,29 @@ int find(int id, int * mas) //find client's number by his ID
     return -1;
 }
 
+
+void child_handle(int data_pipe_0, struct sockaddr* name) //server's suborocess working with a particular client
+{
+    int ret, flag = 0, fd;
+    pr_info("my data_pipe_0 is %d", data_pipe_0);
+    int ans_sk = socket(AF_INET, SOCK_DGRAM, 0);
+    if (ans_sk < 0) {
+        pr_err("socket ans_sk");
+        exit(1);
+    }
+    pr_info("ans_sk is %d", ans_sk);
+    pr_info("name.sin_family=%d, name.sin_port=%d,name.sin_addr.s_addr=%d", ((struct sockaddr_in*)name)->sin_family, ((struct sockaddr_in*)name)->sin_port, ((struct sockaddr_in*)name)->sin_addr.s_addr);
+    pr_info("child initialized");
+    while(1) {
+        char child_buf[BUFSZ] = {0};
+        ret = read(data_pipe_0, child_buf, BUFSZ);
+        if (ret < 0)
+            pr_err("read from data_pipe[my_ip][0]");
+        pr_info("read in fork: %s", child_buf);
+        execution(child_buf, &flag, &fd, ans_sk, name);
+    }
+}
+
 int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name)
 {
     int ret;
@@ -82,7 +117,7 @@ int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* 
         pid_t pid_child = fork();
         pr_info("pid_child is %d", pid_child);
         if (pid_child == 0)
-            child_handle(data_pipe[*num][0], *name);
+            child_handle(data_pipe[*num][0], (struct sockaddr*)name);
         if (pid_child < 0)
             pr_err("fork");
     }
@@ -102,8 +137,8 @@ int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* 
             return -1;
         }
         pr_info("found id %d, num %d", id, *num);
-        buffer_without_pid[strlen(buffer_without_pid)] = 10, buffer_without_pid[strlen(buffer_without_pid)+1] = 0;
-        pr_info("write to pipe[%d]: %s\n", *num, buffer_without_pid);
+        //buffer_without_pid[strlen(buffer_without_pid)] = 10, buffer_without_pid[strlen(buffer_without_pid)+1] = 0;
+        pr_info("write to pipe[%d]: %s", *num, buffer_without_pid);
         if (write(data_pipe[*num][1], buffer_without_pid, BUFSZ) < 0) //server sends command to his particular child
             pr_err("write to data_pipe[my_ip][1]");
         if (strncmp(buffer_without_pid, "quit\n", sizeof("quit\n")) == 0) {

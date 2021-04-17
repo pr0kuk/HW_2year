@@ -2,13 +2,13 @@
 #include "log.h"
 static int fork_flag = 1;
 
-int send_info(int sk, char* buffer)
+int send_info(int sk, char* buffer, struct sockaddr* name)
 {
     if (write(sk, buffer, BUFSZ) < 0) {
         pr_err("send_info");
         exit(1);
     }
-    pr_info("send_info: %s", buffer);
+    //pr_info("send_info: %s", buffer);
     memset(buffer, 0, BUFSZ);
 }
 
@@ -42,6 +42,16 @@ int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
         close(*sk);
         return 1;
     }
+}
+
+int tcp_settings()
+{
+
+}
+
+int fork_settings()
+{
+
 }
 
 int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name)
@@ -99,8 +109,7 @@ int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* 
             }
             buffer[strlen(buffer)-1] = 0;//, buffer[strlen(buffer)+1] = 0;
             pr_info("to execute: %s", buffer);
-            execution(buffer, &flag, &fd, fork_client_sk);
-            //write(fork_client_sk, buffer, BUFSZ);
+            execution(buffer, &flag, &fd, fork_client_sk, NULL);
             memset(buffer,0,BUFSZ);
         }
     }

@@ -1,7 +1,8 @@
 #include "my_server.h"
 #include "log.h"
 // tcsetattr errors
-static int f_d;
+static void* sl;
+static void (*send_info)(int, char*, struct sockaddr*);
 int shell() //starts server's pty
 {
     int ret, resfd, pid;
@@ -25,47 +26,46 @@ int shell() //starts server's pty
         pr_err("tcsetattr");
     pid = fork();
     if (pid == 0) {
+        pr_info("bash pgid is %d", getpgid(0));
         if (dup2(resfd, STDIN_FILENO) < 0)
             pr_err("dup2 resfd 0");
         if (dup2(resfd, STDOUT_FILENO) < 0)
             pr_err("dup2 resfd 1");
         if (dup2(resfd, STDERR_FILENO) < 0)
             pr_err("dup2 resfd 2");
-        if (setsid() < 0)
-            pr_err("setsid");
+        //if (setsid() < 0)
+        //    pr_err("setsid");
+        pr_info("bash pgid after setsid is %d", getpgid(0));
         execl("/bin/bash", "/bin/bash", NULL);
         pr_err("execl");
         exit(1);
     }
     if (pid < 0)
         pr_err("fork");
-    f_d = fd;
     return fd;
 }
 
-void read_bash(int fd, int sk) // read from bash
+void read_bash(int fd, int sk, struct sockaddr* name)
 {
     int ret;
     char readbuf[BUFSZ] = {0};
     struct pollfd pollfds = {fd, POLLIN};
+    *(void **) (&send_info) = dlsym(sl, "send_info");
     while (poll(&pollfds, 1, POLL_WAIT) != 0) {
         ret = read(fd, readbuf, BUFSZ);
         if (ret < 0)
             pr_err("read from bash");
-        pr_info("readbash sk is %d", sk);
-        send_info(sk, readbuf);
+        //pr_info("readbash sk is %d", sk);
+        //send_info(sk, readbuf, name);
+        (*send_info)(sk, readbuf, name);
         memset(readbuf, 0, BUFSZ);
     }
 }
 
-void stop_server(int signum) // exits from all bashes, kill all forks, exit
+void stop_server(int signum)
 {
-    pr_info("stop_server ignited");
-    if (f_d < 1)
-        exit(0);
-    if (write(f_d, "exit\n", sizeof("exit\n")) < 0)
-        pr_err("write exit to %d", f_d);
-    pr_info("fd %d closed\n", f_d);
+    pr_info("stop_server started");
+    killpg(0, SIGKILL);
     exit(0);
 }
 
@@ -84,30 +84,27 @@ int stop_bash(char* child_buf, int * fd)
         pr_err("close bash descriptor");
         return -1;
     }
-    if (strcpy(child_buf, "bash terminated\n") == NULL) {
-        pr_err("strcpy childbuf bash terminated");
-        return -1;
-    }
     *fd = 0;
-    f_d = 0;
     return 0;
 }
 
 
 
-int execution(char* child_buf, int* flag, int *fd, int sk) //handles comms from client
+int execution(char* child_buf, int* flag, int *fd, int sk, struct sockaddr* name)
 {
     int ret;
+    *(void **) (&send_info) = dlsym(sl, "send_info");
     pr_info("execution flag = %d of child_buf: %s", *flag, child_buf);
     if (strncmp(child_buf, "quit", sizeof("quit") - 1) == 0) {
         stop_bash(child_buf, fd);
-        return 0;
+        raise(SIGKILL);
     }
     if (strncmp(child_buf, "exit", sizeof("exit") - 1) == 0) {
         stop_bash(child_buf, fd);
         *flag = 0;
-        strcpy(child_buf, "shell terminated");
-        send_info(sk, child_buf);
+        strcpy(child_buf, "shell terminated\n");
+        //send_info(sk, child_buf, name);
+        (*send_info)(sk, child_buf, name);
         return 0;
     }
     if (*flag) {
@@ -116,12 +113,13 @@ int execution(char* child_buf, int* flag, int *fd, int sk) //handles comms from 
         pr_info("write to bash: %s", child_buf);
         if (ret < 0)
             pr_err("write to bash");
-        read_bash(*fd, sk);
+        read_bash(*fd, sk, name);
         return 0;
     }
     if (strncmp(child_buf, "print", sizeof("print") - 1) == 0) {
         pr_info("print %s", child_buf + sizeof("print"));
-        send_info(sk, child_buf);
+        //send_info(sk, child_buf, name);
+        (*send_info)(sk, child_buf, name);
         return 0;
     }
     if (strncmp(child_buf, "shell", sizeof("shell") - 1) == 0) {
@@ -137,10 +135,11 @@ int execution(char* child_buf, int* flag, int *fd, int sk) //handles comms from 
         if (chdir(child_buf + sizeof("cd")) == -1)
             pr_err("chdir");
         memset(child_buf, 0, BUFSZ);
-        strcpy(child_buf, "cd completed");
-        send_info(sk, child_buf);
+        strcpy(child_buf, "cd completed\n");
+        (*send_info)(sk, child_buf, name);
         return 0;
     }
+
     if (strncmp(child_buf, "ls", sizeof("ls") - 1) == 0) {
         pr_info("ls started");
         memset(child_buf, 0, BUFSZ);
@@ -151,74 +150,32 @@ int execution(char* child_buf, int* flag, int *fd, int sk) //handles comms from 
             pr_err("dup2 lspipe[1] 1");
         if(system("ls") < 0)
             pr_err("execlp ls");
-        if (read(lspipe[0], child_buf, BUFSZ) < 0)
-            pr_err("read lspipe");
         if (dup2(res, 1) < 0)
             pr_err("dup2(res, 1)");
         if (close(lspipe[1]) < 0)
             pr_err("close lspipe[1]");
+        ret = 1;
+        while(ret > 0) {
+            ret = read(lspipe[0], child_buf, BUFSZ);
+            if (ret < 0)
+                pr_err("read lspipe");
+            //pr_info("ls:\n%s", child_buf);
+            (*send_info)(sk, child_buf, name);
+        }
         if (close(lspipe[0]) < 0)
             pr_err("close lspipe[0]");
         if (close(res) < 0)
             pr_err("close res");
-        pr_info("sent ls %s\n", child_buf);
-        send_info(sk, child_buf);
-        pr_info("ls: %s", child_buf);
         return 0;
     }
     char new_buf[BUFSZ] = {0};
     sprintf(new_buf, "unrecognized command: %s", child_buf);
-    send_info(sk, new_buf);   
+    (*send_info)(sk, new_buf, name);   
 }
 
 
 
-void child_handle(int data_pipe_0, struct sockaddr_in name) //server's suborocess working with a particular client
-{
-    int ret, flag = 0, fd;
-    pr_info("my data_pipe_0 is %d", data_pipe_0);
-    int ans_sk = socket(AF_INET, SOCK_DGRAM, 0);
-    if (ans_sk < 0) {
-        pr_err("socket ans_sk");
-        exit(1);
-    }    
-    pr_info("child initialized");
-    while(1) {
-        char child_buf[BUFSZ] = {0};
-        memset(child_buf, 0, BUFSZ);
-        ret = read(data_pipe_0, child_buf, BUFSZ);
-        if (ret < 0)
-            pr_err("read from data_pipe[my_ip][0]");
-        char ans_buffer[BUFSZ] = {0};
-        pr_info("read in fork: %s", child_buf);
-        if (strncmp(child_buf, "exit", sizeof("exit") - 1) == 0)
-            flag = 0;
-        if (flag) {
-            ret = write(fd, child_buf, strlen(child_buf));
-            child_buf[strlen(child_buf) - 1] = 0;
-            pr_info("write to bash: %s", child_buf);
-            if (ret < 0)
-                pr_err("write to bash");
-            read_bash(fd, 0);
-        }
-        else {
-            execution(child_buf, &flag, &fd, 0);
-            if (strncmp(child_buf, "shell", sizeof("shell") - 1)) {
-                int bash_pipe[2];
-                pipe(bash_pipe);
-                read_bash(fd, 0);
-                ret = 1;
-                while(ret > 0) {
-                    read(bash_pipe[0], child_buf, BUFSZ);
-                    ret = sendto(ans_sk, child_buf, BUFSZ, 0, (struct sockaddr*)&name, sizeof(name));
-                }
-                close(bash_pipe[0]);
-            }
-            ret = sendto(ans_sk, child_buf, BUFSZ, 0, (struct sockaddr*)&name, sizeof(name));
-            pr_info("sent in child_handle: %s");
-        }
-    }
-}
+
 
 int broadcast(int ans_sk, struct sockaddr_in* name, char* buffer)
 {
@@ -228,10 +185,37 @@ int broadcast(int ans_sk, struct sockaddr_in* name, char* buffer)
 }
 
 
-int main()
+int main(int argc, char* argv[])
 {
+    if (argc < 2) {
+        perror("argc < 2");
+        return -1;
+    }
     int num = 0;
     log_init(NULL);
+    if (strcmp(argv[1], "udp") == 0) {
+        sl = dlopen("./libudp.so", RTLD_LAZY);
+        if (sl == NULL) {
+            fprintf(stderr, "%s\n", dlerror());
+            return -1;
+        }  
+        pr_info("udp loaded");
+    }
+    else {
+        if (strcmp(argv[1], "tcp") == 0) {
+            sl = dlopen("./libtcpl.so", RTLD_LAZY);
+            if (sl == NULL) {
+                fprintf(stderr, "%s\n", dlerror());
+                return -1;
+            }
+            pr_info("tcp loaded");
+        }
+        else {
+            perror("argument should be tcp or udp");
+            return -1;
+        }
+    }
+    pr_info("server pgid is %d", getpgid(0));
     int id_key = shmget(SHMKEY, sizeof(unsigned int), IPC_CREAT | 0666);
     pid_t* pid = (pid_t*)shmat(id_key, NULL, 0);
     *pid = getpid();
@@ -245,8 +229,16 @@ int main()
         pr_err("answer socket");
         exit(1);
     }
-    settings(&sk, &ans_sk, &name);
-    while (1)
-        server_handler(&num, mas, data_pipe, &name, &sk, &ans_sk, &ans);
+    void (*settings)(int *, int*, struct sockaddr_in*);
+    *(void **) (&settings) = dlsym(sl, "settings");
+    //settings(&sk, &ans_sk, &name);
+    (*settings)(&sk, &ans_sk, &name);
+    void (*server_handler)(int *, int*, int(*)[2], struct sockaddr_in*, int*, int*, struct sockaddr_in*);
+    *(void **) (&server_handler) = dlsym(sl, "server_handler");
+    
+    while (1) {
+        //server_handler(&num, mas, data_pipe, &name, &sk, &ans_sk, &ans);
+        (*server_handler)(&num, mas, data_pipe, &name, &sk, &ans_sk, &ans);
+    }
     return 0; 
 }

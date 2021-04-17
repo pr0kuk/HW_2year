@@ -56,20 +56,17 @@ int main(int argc, char* argv[])
         }
 
         if (strncmp(buffer, "quit", sizeof("quit") - 1) == 0) {
-            printf("buffer: %s\n", buffer);
+            //printf("buffer: %s\n", buffer);
             //kill(pid, SIGTERM);
             printf("server disconnected\n");
             exit(0);
         }
         memset(buffer, 0, BUFSZ);
-        int retread = 1;
-        while(retread > 0) {
-            retread = read(sk, buffer, BUFSZ);
-            if (retread < 0 || ret > BUFSZ)
-            {
-                perror("read");
-                exit(1);
-            }
+        struct pollfd pollfds = {sk, POLLIN};
+        while (poll(&pollfds, 1, POLL_WAIT) != 0) {
+            ret = read(sk, buffer, BUFSZ);
+            if (ret < 0)
+                perror("read from sk");
             ret = write(STDOUT_FILENO, buffer, BUFSZ);
             if (ret < 0 || ret > BUFSZ)
             {

@@ -36,9 +36,10 @@
 #define SHMKEY 42
 
 extern int broadcast(int ans_sk, struct sockaddr_in* ans_name, char* buffer);
-extern int settings(int* sk, int* ans_sk, struct sockaddr_in* name);
-extern void child_handle(int sk, struct sockaddr_in name);
-extern int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name);
-extern int execution(char* child_buf, int* flag, int *fd, int sk) ;
-extern int send_info(int sk, char* buffer);
+//extern int settings(int* sk, int* ans_sk, struct sockaddr_in* name);
+//extern void child_handle(int sk, struct sockaddr_in name);
+//extern int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name);
+extern int execution(char* child_buf, int* flag, int *fd, int sk, struct sockaddr* name);
+//extern int send_info(int sk, char* buffer, struct sockaddr* name);
+
 #endif

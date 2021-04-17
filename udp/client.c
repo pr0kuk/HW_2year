@@ -109,8 +109,8 @@ int main(int argc, char* argv[])
                 ret = recvfrom(sk, buffer_rec, BUFSZ, MSG_DONTWAIT, (struct sockaddr*)&hear, &(int){sizeof(hear)});
                 if (ret >= 0) {
                     write(1, buffer_rec, BUFSZ);
-                    if (buffer_rec[0] == 0)
-                        printf("\n");
+                    //if (buffer_rec[0] == 0)
+                        //printf("\n");
                 }
                 else
                     break;
@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
             //printf("sent %s\n", sendbuf);
             if (ret < 0 || ret > BUFSZ + IDSZ)
                 perror("sendto");
-            if (strncmp(buffer, "quit", sizeof("quit") - 1)) {
+            if (strncmp(buffer, "quit", sizeof("quit") - 1) == 0) {
                 kill(pid, SIGTERM);
                 printf("server disconnected\n");
                 exit(0);
