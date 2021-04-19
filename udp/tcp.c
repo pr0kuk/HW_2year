@@ -48,10 +48,8 @@ int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
 
 int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int (*execution)(char*, int*, int *, int, struct sockaddr*))
 {
-    int client_sk = 0, ret = 0, fd = 0, flag = 0;
-    char buffer[BUFSZ] = {0};
-    char port_str[BUFSZ] = {0};
-    memset(buffer, 0, BUFSZ);
+    int client_sk = 0, ret = 0, fd = 0, flag = 0, tcp_pipe[2];
+    char buffer[BUFSZ], port_str[BUFSZ] = {0};
     pr_info("waiting for hello msg");
     client_sk = accept(*sk, NULL, NULL);
     if (client_sk < 0) {
@@ -64,10 +62,10 @@ int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* 
         exit(1);
     }
     pr_info("received: %s", buffer);
-    int tcp_pipe[2];
     pipe(tcp_pipe);
     pid_t child_pid = fork();
     if (child_pid == 0) {
+        char child_buf[BUFSZ] = {0};
         struct sockaddr_in name_fork = {AF_INET, 0, inet_addr("127.0.0.1")};
         int fork_sk = socket(AF_INET, SOCK_STREAM, 0);
         if (bind(fork_sk, (struct sockaddr*)&name_fork, sizeof(name_fork)) < 0) {
@@ -84,8 +82,7 @@ int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* 
             close(fork_sk);
             return 1;
         }
-        int fork_client_sk = 0, ret = 0;
-        char buffer[BUFSZ] = {0};
+        int fork_client_sk = 0;
         fork_client_sk = accept(fork_sk, NULL, NULL);
         if (fork_client_sk < 0) {
             pr_err("accept");
@@ -94,15 +91,15 @@ int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* 
         pr_info("fork_client_sk is %d", fork_client_sk);
         while (1)
         {
-            ret = read(fork_client_sk, buffer, BUFSZ);
+            ret = read(fork_client_sk, child_buf, BUFSZ);
             if (ret < 0 || ret > BUFSZ) {
                 pr_err("read");
                 exit(1);
             }
-            buffer[strlen(buffer)-1] = 0;//, buffer[strlen(buffer)+1] = 0;
-            pr_info("to execute: %s", buffer);
-            execution(buffer, &flag, &fd, fork_client_sk, NULL);
-            memset(buffer,0,BUFSZ);
+            child_buf[strlen(child_buf)-1] = 0;
+            pr_info("to execute: %s", child_buf);
+            execution(child_buf, &flag, &fd, fork_client_sk, NULL);
+            memset(child_buf,0,BUFSZ);
         }
     }
     ret = read(tcp_pipe[0], port_str, BUFSZ);
