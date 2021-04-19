@@ -19,8 +19,7 @@ void broadcast_client()
         perror("setsockopt");
         exit(1);
     }
-    printf("Broadcasting..\n");
-    printf("check:\nsin.addr.s_addr:%d-%d\nsin_port:%d-%d\n", ans.sin_addr.s_addr, INADDR_BROADCAST, ans.sin_port, htons(PORT));
+    //printf("check:\nsin.addr.s_addr:%d-%d\nsin_port:%d-%d\n", ans.sin_addr.s_addr, INADDR_BROADCAST, ans.sin_port, htons(PORT));
     ret = sendto(ans_sk, "!hello!", sizeof("!hello!")-1, 0, (struct sockaddr*)&ans, sizeof(ans));
     if (ret < 0 || ret > sizeof("!hello!") - 1) {
         perror("broadcast");
@@ -29,16 +28,21 @@ void broadcast_client()
     ans.sin_addr.s_addr = htonl(INADDR_ANY), ans.sin_port = 0;
     ret = bind(ans_sk, (struct sockaddr*)&ans, sizeof(ans));
     if (ret < 0) {
-        perror("bind ans_sk"); //It is printed EINVAL, I don't know why
+        //perror("bind ans_sk"); //It is printed EINVAL, I don't know why
         //exit(1);
     }
+    getsockname(ans_sk, (struct sockaddr*)&ans, &(int){sizeof(ans)});
+    printf("Broadcasting from port %d..\n", ans.sin_port);
     printf("Waiting for answers (%d clocks)..\n", CLOCKS_TO_WAIT);
+    int count = 0;
     for (i = 0; i < CLOCKS_TO_WAIT; i++) {
         ret = recvfrom(ans_sk, serv_ip, sizeof(serv_ip), MSG_DONTWAIT, (struct sockaddr*)&ans, &(int){sizeof(ans)});
-        if (ret >= 0)
+        if (ret >= 0) {
             printf("%s server found\n", inet_ntoa(ans.sin_addr));
+            count++;
+        }
     }
-    printf("Waiting is over..\n");
+    printf("Waiting is over, %d servers found\n", count);
     return;
 }
 

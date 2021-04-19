@@ -110,9 +110,11 @@ int execution(char* child_buf, int* flag, int *fd, int sk, struct sockaddr* name
     if (*flag) {
         child_buf[strlen(child_buf)] = 10, child_buf[strlen(child_buf) + 1] = 0;
         ret = write(*fd, child_buf, strlen(child_buf));
+        child_buf[strlen(child_buf) - 1] = 0;
         pr_info("write to bash: %s", child_buf);
         if (ret < 0)
             pr_err("write to bash");
+        memset(child_buf, 0, BUFSZ);
         read_bash(*fd, sk, name);
         return 0;
     }
@@ -126,6 +128,7 @@ int execution(char* child_buf, int* flag, int *fd, int sk, struct sockaddr* name
         *flag = 1;
         pr_info("flag = 1 = %d", *flag);
         *fd = shell();
+        read_bash(*fd, sk, name);
         memset(child_buf, 0, BUFSZ);
         return 0;
     }
@@ -174,17 +177,6 @@ int execution(char* child_buf, int* flag, int *fd, int sk, struct sockaddr* name
 }
 
 
-
-
-
-int broadcast(int ans_sk, struct sockaddr_in* name, char* buffer)
-{
-        if (sendto(ans_sk, "", 1, 0, (struct sockaddr*)&name, sizeof(name)) != 1)
-            pr_err("answer to broadcast");
-        memset(buffer, 0, BUFSZ);
-}
-
-
 int main(int argc, char* argv[])
 {
     if (argc < 2) {
@@ -215,6 +207,11 @@ int main(int argc, char* argv[])
             return -1;
         }
     }
+    if (daemon(1,1) == -1)
+    {
+        perror("daemon");
+        exit(-1);
+    }
     pr_info("server pgid is %d", getpgid(0));
     int id_key = shmget(SHMKEY, sizeof(unsigned int), IPC_CREAT | 0666);
     pid_t* pid = (pid_t*)shmat(id_key, NULL, 0);
@@ -233,12 +230,12 @@ int main(int argc, char* argv[])
     *(void **) (&settings) = dlsym(sl, "settings");
     //settings(&sk, &ans_sk, &name);
     (*settings)(&sk, &ans_sk, &name);
-    void (*server_handler)(int *, int*, int(*)[2], struct sockaddr_in*, int*, int*, struct sockaddr_in*, void (*)(char*, int*, int *, int, struct sockaddr*));
+    void (*server_handler)(int *, int*, int(*)[2], struct sockaddr_in*, int*, int (*)(char*, int*, int *, int, struct sockaddr*));
     *(void **) (&server_handler) = dlsym(sl, "server_handler");
-    void* (*executionf)(char*, int*, int *, int, struct sockaddr*) = execution;
+    int (*executionf)(char*, int*, int *, int, struct sockaddr*) = execution;
     while (1) {
         //server_handler(&num, mas, data_pipe, &name, &sk, &ans_sk, &ans);
-        (*server_handler)(&num, mas, data_pipe, &name, &sk, &ans_sk, &ans, executionf);
+        (*server_handler)(&num, mas, data_pipe, &name, &sk, executionf);
     }
     return 0; 
 }

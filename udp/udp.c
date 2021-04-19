@@ -68,7 +68,7 @@ int find(int id, int * mas) //find client's number by his ID
 }
 
 
-void child_handle(int data_pipe_0, struct sockaddr* name, void (*execution)(char*, int*, int *, int, struct sockaddr*)) //server's suborocess working with a particular client
+void child_handle(int data_pipe_0, struct sockaddr* name, int (*execution)(char*, int*, int *, int, struct sockaddr*)) //server's suborocess working with a particular client
 {
     int ret, flag = 0, fd;
     pr_info("my data_pipe_0 is %d", data_pipe_0);
@@ -90,7 +90,15 @@ void child_handle(int data_pipe_0, struct sockaddr* name, void (*execution)(char
     }
 }
 
-int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name, void (*execution)(char*, int*, int *, int, struct sockaddr*))
+int broadcast(int ans_sk, struct sockaddr_in name)
+{
+    pr_info("name: %d %d %d", name.sin_family, name.sin_port, name.sin_addr.s_addr);
+    if (sendto(ans_sk, "", 1, 0, (struct sockaddr*)&name, sizeof(name)) != 1)
+        pr_err("answer to broadcast");
+}
+
+
+int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int (*execution)(char*, int*, int *, int, struct sockaddr*))
 {
     int ret;
     char buffer[BUFSZ + IDSZ] = {0};
@@ -98,11 +106,14 @@ int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* 
     if (ret < 0)
         pr_err("recvfrom sk");
     pr_info("received %s", buffer);
-    if (strcmp(buffer, "!hello!") == 0) //server receives broadcast
-        broadcast(*ans_sk, ans_name, buffer);
+    if (strcmp(buffer, "!hello!") == 0) {
+        broadcast(*sk, *name);
+        memset(buffer, 0, BUFSZ);
+        return 0;
+    }
     char my_ip_str[BUFSZ] ={0};
     memset(my_ip_str, 0, BUFSZ);
-    if (strncmp(buffer, "!connect!", sizeof("!connect!") - 1) == 0) { // is it a first msg of client? then remember him, gave him a number and create subprocess for his commands
+    if (strncmp(buffer, "!connect!", sizeof("!connect!") - 1) == 0) {
         if (strcpy(my_ip_str, buffer + sizeof("!connect!") -1) == NULL)
             pr_err("strcpy my_ip_str");
         int id = atoi(my_ip_str);
