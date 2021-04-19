@@ -1,80 +1,92 @@
 #include "my_server.h"
 
 
-int main(int argc, char* argv[])
+int receiver(int sk)
 {
-    struct sockaddr_in name = {0};
-    int sk, ret;
-    char port_str[BUFSZ] = {0};
-    char buffer[BUFSZ] = {0};
-    sk = socket(AF_INET, SOCK_STREAM, 0);
-    if (sk < 0)
+    char* buffer[BUFSZ] = {0};
+    int ret = read(STDIN_FILENO, buffer, BUFSZ);
+    if (ret < 0 || ret > BUFSZ)
     {
-        perror("socket");
+        perror("read");
         exit(1);
     }
-    name.sin_family = AF_INET;
-    //strncpy(name.sun_path, PATH, sizeof(PATH));
-    name.sin_port = htons(23456);
-    if (inet_aton(argv[1], &name.sin_addr) == 0) {
-        perror("Inputted IP-Adress");
+    ret = write(sk, buffer, BUFSZ);
+    if (ret < 0 || ret > BUFSZ)
+    {
+        perror("write");
         exit(1);
     }
-    ret = connect(sk, (struct sockaddr*)&name, sizeof(name));
-    if (ret < 0)
-    {
-        perror("connect");
-        close(sk);
-        return 1;
+    if (strncmp(buffer, "quit", sizeof("quit") - 1) == 0) {
+        printf("server disconnected\n");
+        exit(0);
     }
-    write(sk, "hello", sizeof("hello"));
-    //sleep(1);
-    read(sk, port_str, BUFSZ);
-    printf("%s\n", port_str);
-    close(sk);
-    name.sin_port = (atoi(port_str));
-    sk = socket(AF_INET, SOCK_STREAM, 0);
-    ret = connect(sk, (struct sockaddr*)&name, sizeof(name));
-    if (ret < 0)
-    {
-        perror("connect");
-        close(sk);
-        return 1;
-    }
-    while(1) {
-        ret = read(STDIN_FILENO, buffer, BUFSZ);
-        if (ret < 0 || ret > BUFSZ)
-        {
-            perror("read");
+    if (memset(buffer, 0, BUFSZ) == NULL)
+        perror("memset");
+    struct pollfd pollfds = {sk, POLLIN};
+    while (poll(&pollfds, 1, POLL_WAIT) != 0) {
+        ret = read(sk, buffer, BUFSZ);
+        if (ret < 0) {
+            perror("read from sk");
             exit(1);
         }
-        ret = write(sk, buffer, BUFSZ);
+        ret = write(STDOUT_FILENO, buffer, BUFSZ);
         if (ret < 0 || ret > BUFSZ)
         {
             perror("write");
             exit(1);
         }
-
-        if (strncmp(buffer, "quit", sizeof("quit") - 1) == 0) {
-            //printf("buffer: %s\n", buffer);
-            //kill(pid, SIGTERM);
-            printf("server disconnected\n");
-            exit(0);
-        }
-        memset(buffer, 0, BUFSZ);
-        struct pollfd pollfds = {sk, POLLIN};
-        while (poll(&pollfds, 1, POLL_WAIT) != 0) {
-            ret = read(sk, buffer, BUFSZ);
-            if (ret < 0)
-                perror("read from sk");
-            ret = write(STDOUT_FILENO, buffer, BUFSZ);
-            if (ret < 0 || ret > BUFSZ)
-            {
-                perror("write");
-                exit(1);
-            }
-            memset(buffer, 0, BUFSZ);
-        }
+        if (memset(buffer, 0, BUFSZ) == NULL)
+            perror("memset");
     }
+}
+
+
+
+int main(int argc, char* argv[])
+{
+    struct sockaddr_in name = {AF_INET, htons(PORT), 0};
+    int sk, ret;
+    char port_str[BUFSZ] = {0};
+    char buffer[BUFSZ] = {0};
+    sk = socket(AF_INET, SOCK_STREAM, 0);
+    if (sk < 0) {
+        perror("socket");
+        exit(1);
+    }
+    if (inet_aton(argv[1], &name.sin_addr) == 0) {
+        perror("Inputted IP-Adress");
+        exit(1);
+    }
+    if (connect(sk, (struct sockaddr*)&name, sizeof(name)) < 0) {
+        perror("connect");
+        close(sk);
+        return 1;
+    }
+    if (write(sk, "hello", sizeof("hello")) < 0) { //send fist msg to server
+        perror("write hello");
+        return -1;
+    }
+    if (read(sk, port_str, BUFSZ) < 0) {
+        perror("read port");
+        return -1;
+    }
+    printf("port of my server subprocess: %s\n", port_str);
+    if (close(sk) < 0) {
+        perror("close");
+        return -1;
+    }
+    name.sin_port = (atoi(port_str));
+    sk = socket(AF_INET, SOCK_STREAM, 0);
+    if (sk < 0) {
+        perror("socket");
+        exit(1);
+    }
+    if (connect(sk, (struct sockaddr*)&name, sizeof(name)) < 0) {
+        perror("connect");
+        close(sk);
+        return 1;
+    }
+    while(1)
+        receiver(sk);
     return 0;
 }
