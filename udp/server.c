@@ -174,9 +174,26 @@ int com_ls(int sk, char* child_buf, struct sockaddr* name)
     }
 }
 
+int com_cd(int sk, char* child_buf, struct sockaddr* name)
+{
+    child_buf[strlen(child_buf)] = 0;
+    pr_info("chdir to %s", child_buf + sizeof("cd"));
+    if (chdir(child_buf + sizeof("cd")) == -1) {
+        pr_err("chdir");
+        return -1;
+    }
+    if (memset(child_buf, 0, BUFSZ) == NULL)
+        pr_err("cd memset");
+    if (strcpy(child_buf, "cd completed\n") < 0) {
+        pr_err("strcpy cd completed");
+        return -1;
+    }
+    (*send_info)(sk, child_buf, name);
+    return 0;
+}
+
 int execution(char* child_buf, int* flag, int *fd, int sk, struct sockaddr* name)
 {
-    int ret;
     enum command {quit, exit_bash, comm_to_bash, print, shell_start, cd, ls};
     switch (cmp_comm(child_buf, *flag)) {
         case(quit):
@@ -185,13 +202,13 @@ int execution(char* child_buf, int* flag, int *fd, int sk, struct sockaddr* name
                 pr_err("raise(SIGKILL)");
                 exit(-1);
             }
-        break;
+            break;
         case(exit_bash):
             stop_bash(child_buf, fd);
             *flag = 0;
             strcpy(child_buf, "shell terminated\n");
             (*send_info)(sk, child_buf, name);
-        break;
+            break;
         case(comm_to_bash):
             child_buf[strlen(child_buf)] = 0, child_buf[strlen(child_buf)] = 10;
             if (write(*fd, child_buf, strlen(child_buf)) < 0) {
@@ -203,37 +220,24 @@ int execution(char* child_buf, int* flag, int *fd, int sk, struct sockaddr* name
             if (memset(child_buf, 0, BUFSZ) == NULL)
                 pr_err("memset shell_start");
             read_bash(*fd, sk, name);
-        break;
+            break;
         case(print):
-            pr_info("print %s", child_buf + sizeof("print"));
+            pr_info("print %s", child_buf + sizeof("print "));
             (*send_info)(sk, child_buf, name);
-        break;
+            break;
         case(shell_start):
             *flag = 1;
-            pr_info("flag = 1 = %d", *flag);
             *fd = shell();
             read_bash(*fd, sk, name);
             if (memset(child_buf, 0, BUFSZ) == NULL)
                 pr_err("memset shell_start");
-        break;
+            break;
         case(cd):
-            child_buf[strlen(child_buf)] = 0;
-            pr_info("chdir to %s", child_buf + sizeof("cd"));
-            if (chdir(child_buf + sizeof("cd")) == -1) {
-                pr_err("chdir");
-                return -1;
-            }
-            if (memset(child_buf, 0, BUFSZ) == NULL)
-                pr_err("cd memset");
-            if (strcpy(child_buf, "cd completed\n") < 0) {
-                pr_err("strcpy cd completed");
-                return -1;
-            }
-            (*send_info)(sk, child_buf, name);
-        break;
+            com_cd(sk, child_buf, name);
+            break;
         case(ls):
             com_ls(sk, child_buf, name);
-        break;
+            break;
         default:
             sprintf(child_buf, "unrecognized command: %s", child_buf);
             (*send_info)(sk, child_buf, name);   
@@ -271,10 +275,6 @@ int main(int argc, char* argv[])
         fprintf(stderr, "%s\n", dlerror());
         return -1;
     }  
-    /*if (daemon(1,1) == -1) {
-        perror("daemon");
-        exit(-1);
-    }*/
     pr_info("server pgid is %d", getpgid(0));
     int id_key = shmget(SHMKEY, sizeof(unsigned int), IPC_CREAT | 0666);
     pid_t* pid = (pid_t*)shmat(id_key, NULL, 0);
@@ -298,6 +298,10 @@ int main(int argc, char* argv[])
     void (*server_handler)(int *, int*, int(*)[2], struct sockaddr_in*, int*, int (*)(char*, int*, int *, int, struct sockaddr*));
     *(void **) (&server_handler) = dlsym(sl, "server_handler");
     int (*executionf)(char*, int*, int *, int, struct sockaddr*) = execution;
+    /*if (daemon(1,1) == -1) {
+        perror("daemon");
+        exit(-1);
+    }*/
     while (1)
         (*server_handler)(&num, mas, data_pipe, &name, &sk, executionf);
     return 0; 

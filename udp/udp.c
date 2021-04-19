@@ -1,7 +1,6 @@
 #include "my_server.h"
 #include "log.h"
 
-//\n at client doesnt work always
 int decypher(char* buffer, char* my_ip_str, char* buffer_without_pid) //gets from client string client's id and command
 {
     int i = 0;
@@ -37,14 +36,13 @@ int send_info(int sk, char* buffer, struct sockaddr* name)
         pr_err("memset send_info");
         return -1;
     }
-    //ret = sendto(sk, buffer, BUFSZ, 0, name, sizeof(*name));
     return 0;
 }
+
 
 int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
 {
     log_init(NULL);
-    //struct sockaddr_in name = {AF_INET, htons(PORT), htonl(INADDR_ANY)};
     name->sin_family = AF_INET;
     name->sin_port = htons(PORT); // htons, e.g. htons(10000)
     name->sin_addr.s_addr = htonl(INADDR_ANY); // htonl, ntohl
@@ -58,6 +56,7 @@ int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
         exit(1);
     }
 }
+
 
 int connect_id(int id, int * mas) //remembers client's ID and gives him his number
 {
@@ -98,6 +97,7 @@ void child_handle(int data_pipe_0, struct sockaddr* name, int (*execution)(char*
     }
 }
 
+
 int broadcast(int ans_sk, struct sockaddr_in name)
 {
     pr_info("name: %d %d %d", name.sin_family, name.sin_port, name.sin_addr.s_addr);
@@ -108,10 +108,73 @@ int broadcast(int ans_sk, struct sockaddr_in name)
     return 0;
 }
 
+int com_connect(int* num, int* mas, char* buffer, int (*data_pipe)[2], struct sockaddr_in* name, int (*execution)(char*, int*, int *, int, struct sockaddr*))
+{
+    char my_ip_str[BUFSZ] = {0};
+    if (strcpy(my_ip_str, buffer + sizeof("!connect!") -1 ) == NULL) {
+        pr_err("strcpy my_ip_str");
+        return -1;
+    }
+    int id = atoi(my_ip_str);
+    *num = connect_id(id, mas);
+    int int_num = *num;
+    pr_info("num in server_handler is %d", *num);
+    if (*num < 0) {
+        pr_err("there is no room for a client");
+        return -1;
+    }
+    pr_info("connected id %d, num %d", id, *num);
+    if (pipe(data_pipe[int_num]) < 0) {
+        pr_err("pipe");
+        return -1;
+    }
+    pid_t pid_child = fork();
+    if (pid_child == 0)
+        child_handle(data_pipe[*num][0], (struct sockaddr*)name, execution);
+    if (pid_child < 0) {
+        pr_err("fork");
+        return -1;
+    }
+}
+
+int master_handler(int (*data_pipe)[2], int* num, char* buffer, int* mas)
+{
+    //pr_info("buffer before id %s", buffer);
+    char buffer_without_pid[BUFSZ] = {0}, my_ip_str[BUFSZ] = {0};
+    int id = decypher(buffer, my_ip_str, buffer_without_pid);
+    if (id == -1) {
+        pr_err("id cannot be recognized");
+        return -1;
+    }
+    //pr_info("id %d", id);
+    *num = find(id, mas);
+    if (*num < 0) {
+        pr_err("find error");
+        return -1;
+    }
+    pr_info("found id %d, num %d", id, *num);
+    pr_info("write to pipe[%d]: %s", *num, buffer_without_pid);
+    if (write(data_pipe[*num][1], buffer_without_pid, BUFSZ) < 0) {
+        pr_err("write to data_pipe[my_ip][1]");
+        return -1;
+    }
+    if (strncmp(buffer_without_pid, "quit\n", sizeof("quit\n")) == 0) {
+        if (close(data_pipe[*num][0]) == -1) {
+            pr_err("close data_pipe[*num][0]");
+            return -1;
+        }
+        if (close(data_pipe[*num][1]) == -1) {
+            pr_err("close data_pipe[*num][1]");
+            return -1;
+        }
+        mas[*num] = 0;
+        pr_info("%d closed", *num);
+    }
+}
 
 int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int (*execution)(char*, int*, int *, int, struct sockaddr*))
 {
-    char buffer[BUFSZ + IDSZ] = {0}, my_ip_str[BUFSZ] = {0};
+    char buffer[BUFSZ + IDSZ] = {0};
     if (recvfrom(*sk, buffer, BUFSZ + IDSZ, 0, (struct sockaddr*)name, &(int){sizeof(name)}) < 0) {
         pr_err("recvfrom sk");
         return -1;
@@ -119,73 +182,11 @@ int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* 
     pr_info("received %s", buffer);
     if (strcmp(buffer, "!hello!") == 0) {
         broadcast(*sk, *name);
-        if (memset(buffer, 0, BUFSZ) == NULL)
-            pr_err("memset buffer broadcast server_handler")
         return 0;
     }
-    if (memset(my_ip_str, 0, BUFSZ) == NULL)
-        pr_err("memset my_ip_str");
-    if (strncmp(buffer, "!connect!", sizeof("!connect!") - 1) == 0) {
-        if (strcpy(my_ip_str, buffer + sizeof("!connect!") -1) == NULL) {
-            pr_err("strcpy my_ip_str");
-            return -1;
-        }
-        int id = atoi(my_ip_str);
-        *num = connect_id(id, mas);
-        int int_num = *num;
-        pr_info("num in server_handler is %d", *num);
-        if (*num < 0) {
-            pr_err("there is no room for a client");
-            return -1;
-        }
-        pr_info("connected id %d, num %d", id, *num);
-        if (pipe(data_pipe[int_num]) < 0) {
-            pr_err("pipe");
-            return -1;
-        }
-        pid_t pid_child = fork();
-        if (pid_child == 0)
-            child_handle(data_pipe[*num][0], (struct sockaddr*)name, execution);
-        if (pid_child < 0) {
-            pr_err("fork");
-            return -1;
-        }
-    }
-    else { //server works with all commands
-        //pr_info("buffer before id %s", buffer);
-        char buffer_without_pid[BUFSZ] = {0};
-        if (memset(buffer_without_pid, 0, BUFSZ) == NULL)
-            pr_err("memset buffer_without_pid server_handler");
-        int id = decypher(buffer, my_ip_str, buffer_without_pid);
-        if (id == -1) {
-            pr_err("id cannot be recognized");
-            return -1;
-        }
-        //pr_info("id %d", id);
-        *num = find(id, mas);
-        if (*num < 0) {
-            pr_err("find error");
-            return -1;
-        }
-        pr_info("found id %d, num %d", id, *num);
-        //buffer_without_pid[strlen(buffer_without_pid)] = 10, buffer_without_pid[strlen(buffer_without_pid)+1] = 0;
-        pr_info("write to pipe[%d]: %s", *num, buffer_without_pid);
-        if (write(data_pipe[*num][1], buffer_without_pid, BUFSZ) < 0) {
-            pr_err("write to data_pipe[my_ip][1]");
-            return -1;
-        }
-        if (strncmp(buffer_without_pid, "quit\n", sizeof("quit\n")) == 0) {
-            if (close(data_pipe[*num][0]) == -1) {
-                pr_err("close data_pipe[*num][0]");
-                return -1;
-            }
-            if (close(data_pipe[*num][1]) == -1) {
-                pr_err("close data_pipe[*num][1]");
-                return -1;
-            }
-            mas[*num] = 0;
-            pr_info("%d closed", *num);
-        }
-    }
+    if (strncmp(buffer, "!connect!", sizeof("!connect!") - 1) == 0) // first connection
+        com_connect(&num, mas, buffer, data_pipe, name, execution);
+    else //server works with all commands
+        master_handler(data_pipe, num, buffer, mas);
     return 0;
 }
