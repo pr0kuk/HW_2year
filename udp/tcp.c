@@ -19,6 +19,7 @@ void set_flag(int signum)
 
 int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
 {
+    log_init(NULL);
     *sk = socket(AF_INET, SOCK_STREAM, 0);
     if (*sk < 0)
     {
@@ -44,15 +45,6 @@ int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
     }
 }
 
-int tcp_settings()
-{
-
-}
-
-int fork_settings()
-{
-
-}
 
 int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name, void (*execution)(char*, int*, int *, int, struct sockaddr*))
 {

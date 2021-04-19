@@ -32,7 +32,7 @@ int send_info(int sk, char* buffer, struct sockaddr* name)
 
 int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
 {
-
+    log_init(NULL);
     //struct sockaddr_in name = {AF_INET, htons(PORT), htonl(INADDR_ANY)};
     name->sin_family = AF_INET;
     name->sin_port = htons(PORT); // htons, e.g. htons(10000)
@@ -68,7 +68,7 @@ int find(int id, int * mas) //find client's number by his ID
 }
 
 
-void child_handle(int data_pipe_0, struct sockaddr* name) //server's suborocess working with a particular client
+void child_handle(int data_pipe_0, struct sockaddr* name, void (*execution)(char*, int*, int *, int, struct sockaddr*)) //server's suborocess working with a particular client
 {
     int ret, flag = 0, fd;
     pr_info("my data_pipe_0 is %d", data_pipe_0);
@@ -90,7 +90,7 @@ void child_handle(int data_pipe_0, struct sockaddr* name) //server's suborocess 
     }
 }
 
-int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name, int (*execution))
+int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int* ans_sk, struct sockaddr_in* ans_name, void (*execution)(char*, int*, int *, int, struct sockaddr*))
 {
     int ret;
     char buffer[BUFSZ + IDSZ] = {0};
@@ -117,7 +117,7 @@ int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* 
         pid_t pid_child = fork();
         pr_info("pid_child is %d", pid_child);
         if (pid_child == 0)
-            child_handle(data_pipe[*num][0], (struct sockaddr*)name);
+            child_handle(data_pipe[*num][0], (struct sockaddr*)name, execution);
         if (pid_child < 0)
             pr_err("fork");
     }

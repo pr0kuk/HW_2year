@@ -7,7 +7,7 @@ all: server.o client.o con.o log.o tcp_client.o tcp.o udp.o
 	gcc -shared tcp.o log.c -o libtcpl.so
 	gcc -shared udp.o log.c -o libudp.so 
 	gcc tcp_client.o -o tcp_client
-	gcc server.o log.c -o server -L $(shell pwd) -ltcpl -ludp -ldl
+	gcc server.o log.c -o server -L $(shell pwd) -ldl
 
 tcp.o: tcp.c
 	gcc -c tcp.c -o tcp.o -g -O0 -fPIC
