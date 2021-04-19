@@ -18,9 +18,9 @@ Before using you need to choose work mode: tcp or udp  (put -ltcpl or -ludp in m
 	make
 	
 #### Running
-	./server
+	sudo ./server [mode] udp
 	
-	./client [ip] (127.0.0.1)
+	./client [ip] (127.0.0.1) // for tcp use ./tcp_client
 	print Hello World!
 	ls
 	cd /bin
