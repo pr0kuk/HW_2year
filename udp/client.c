@@ -15,28 +15,28 @@ void broadcast_client()
 {
     char serv_ip[1];
     int ret, ans_sk, i, count = 0;
-    struct sockaddr_in ans = {AF_INET, htons(PORT), {INADDR_BROADCAST}};
+    struct sockaddr_in ans = {AF_INET, 0, {htonl(INADDR_ANY)}};
     ans_sk = socket(AF_INET, SOCK_DGRAM, 0);
     if (ans_sk < 0) {
         perror("socket ans_sk");
         exit(1);
     }
+    ret = bind(ans_sk, (struct sockaddr*)&ans, sizeof(ans));
+    if (ret < 0) {
+        perror("bind ans_sk");
+        exit(1);
+    }
+    ans.sin_addr.s_addr = htonl(INADDR_BROADCAST), ans.sin_port = htons(PORT);
     ret = setsockopt(ans_sk, SOL_SOCKET, SO_BROADCAST, &(int){1}, sizeof(int));
     if (ret < 0) {
         perror("setsockopt");
         exit(1);
     }
-    ret = sendto(ans_sk, "!hello!", sizeof("!hello!")-1, 0, (struct sockaddr*)&ans, sizeof(ans));
-    if (ret < 0 || ret > sizeof("!hello!") - 1) {
+    ret = sendto(ans_sk, "!hello!", BUFSZ, 0, (struct sockaddr*)&ans, sizeof(ans));
+    if (ret < 0 || ret > BUFSZ) {
         perror("broadcast");
         exit(1);
     }
-    ans.sin_addr.s_addr = htonl(INADDR_ANY), ans.sin_port = 0;
-    ret = bind(ans_sk, (struct sockaddr*)&ans, sizeof(ans));
-    /*if (ret < 0) {
-        perror("bind ans_sk"); //It is printed EINVAL, I don't know why
-        exit(1);
-    }*/
     getsockname(ans_sk, (struct sockaddr*)&ans, &(int){sizeof(ans)});
     printf("Broadcasting from port %d..\nWaiting for answers (%d clocks)..\n", ans.sin_port, CLOCKS_TO_WAIT);
     for (i = 0; i < CLOCKS_TO_WAIT; i++) {
