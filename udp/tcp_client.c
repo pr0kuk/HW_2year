@@ -11,19 +11,16 @@ void interrupted(int signum)
     raise(SIGKILL);
 }
 
-void crypto()
-{
-    return;
-}
 
 int receiver()
 {
-    char* buffer[BUFSZ] = {0};
+    char buffer[BUFSZ] = {0};
     int ret = read(STDIN_FILENO, buffer, BUFSZ);
     if (ret < 0 || ret > BUFSZ) {
         perror("read");
         exit(1);
     }
+    crypto(buffer);
     ret = write(sk, buffer, BUFSZ);
     if (ret < 0 || ret > BUFSZ) {
         perror("write");
@@ -43,6 +40,7 @@ int receiver()
                 perror("read from sk");
                 exit(1);
             }
+            crypto(buffer);
             ret = write(STDOUT_FILENO, buffer, BUFSZ);
             if (ret < 0 || ret > BUFSZ) {
                 perror("write");

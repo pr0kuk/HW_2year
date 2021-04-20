@@ -4,6 +4,7 @@ static int fork_flag = 1;
 
 int send_info(int sk, char* buffer, struct sockaddr* name)
 {
+    crypto(buffer);
     if (write(sk, buffer, BUFSZ) < 0) {
         pr_err("send_info");
         exit(1);
@@ -78,6 +79,8 @@ int child_handle(int tcp_pipe_1, char* port_str, int (*execution)(char*, int*, i
             pr_err("read");
             exit(1);
         }
+        pr_info("received: %s", child_buf)
+        crypto(child_buf);
         child_buf[strlen(child_buf)-1] = 0;
         pr_info("to execute: %s", child_buf);
         execution(child_buf, &bash_work, &fd, fork_client_sk, NULL);

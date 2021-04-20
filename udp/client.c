@@ -11,10 +11,7 @@ void gen_id()
     printf("id is %s\n", id);
 }
 
-void crypto()
-{
-    return;
-}
+
 
 void broadcast_client()
 {
@@ -110,6 +107,7 @@ int sender(pid_t pid, int* data_pipe)
     if (strncmp(buffer, "broadcast", sizeof("broadcast") - 1) == 0)
         broadcast_client();
     else {
+        crypto(sendbuf);
         ret = sendto(sk, sendbuf, BUFSZ, 0, (struct sockaddr*)name, sizeof(*name));
         //printf("sent %s\n", sendbuf);
         if (ret < 0 || ret > BUFSZ)
@@ -128,6 +126,7 @@ int receiver(struct sockaddr_in* hear, int* data_pipe)
     while(1) {
         char buffer_rec[BUFSZ] = {0};
         recvfrom(sk, buffer_rec, BUFSZ, MSG_DONTWAIT, (struct sockaddr*)hear, &(int){sizeof(*hear)});
+        crypto(buffer_rec);
         if (buffer_rec[0] == 0)
             break;
         if (write(data_pipe[1], buffer_rec, BUFSZ) < 0) {

@@ -17,6 +17,7 @@ int decypher(char* buffer, char* my_ip_str, char* buffer_without_pid) //gets fro
 
 int send_info(int sk, char* buffer, struct sockaddr* name)
 {
+    crypto(buffer);
     //pr_info("send info:\n%s", buffer);
     //pr_info("sk is %d", sk);
     //pr_info("name.sin_family=%d, name.sin_port=%d,name.sin_addr.s_addr=%d", ((struct sockaddr_in*)name)->sin_family, ((struct sockaddr_in*)name)->sin_port, ((struct sockaddr_in*)name)->sin_addr.s_addr);
@@ -134,6 +135,7 @@ int com_connect(int* num, int* mas, char* buffer, int (*data_pipe)[2], struct so
 int master_handler(int (*data_pipe)[2], int* num, char* buffer, int* mas)
 {
     //pr_info("buffer before id %s", buffer);
+    crypto(buffer);
     char buffer_without_pid[BUFSZ] = {0}, my_ip_str[BUFSZ] = {0};
     int id = decypher(buffer, my_ip_str, buffer_without_pid);
     if (id == -1) {
