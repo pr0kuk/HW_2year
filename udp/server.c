@@ -61,15 +61,17 @@ void read_bash(int fd, int sk, struct sockaddr* name)
     char readbuf[BUFSZ] = {0};
     struct pollfd pollfds = {fd, POLLIN};
     while (poll(&pollfds, 1, POLL_WAIT) != 0) {
-        ret = read(fd, readbuf, BUFSZ);
-        if (ret < 0) {
-            pr_err("read from bash");
-            return -1;
-        }
-        (*send_info)(sk, readbuf, name);
-        if (memset(readbuf, 0, BUFSZ) == NULL) {
-            pr_err("memset read_bash");
-            return -1;
+        if (pollfds.revents == POLLIN) {
+            ret = read(fd, readbuf, BUFSZ);
+            if (ret < 0) {
+                pr_err("read from bash");
+                return -1;
+            }
+            (*send_info)(sk, readbuf, name);
+            if (memset(readbuf, 0, BUFSZ) == NULL) {
+                pr_err("memset read_bash");
+                return -1;
+            }
         }
     }
 }
@@ -103,13 +105,13 @@ int stop_bash(char* child_buf, int * fd)
     return 0;
 }
 
-int cmp_comm(char* child_buf, int flag)
+int cmp_comm(char* child_buf, int bash_work)
 {
     if (strncmp(child_buf, "quit", sizeof("quit") - 1) == 0)
         return 0;
     if (strncmp(child_buf, "exit", sizeof("exit") - 1) == 0)
         return 1;
-    if (flag)
+    if (bash_work)
         return 2;
     if (strncmp(child_buf, "print", sizeof("print") - 1) == 0)
         return 3;
@@ -192,10 +194,10 @@ int com_cd(int sk, char* child_buf, struct sockaddr* name)
     return 0;
 }
 
-int execution(char* child_buf, int* flag, int *fd, int sk, struct sockaddr* name)
+int execution(char* child_buf, int* bash_work, int *fd, int sk, struct sockaddr* name)
 {
     enum command {quit, exit_bash, comm_to_bash, print, shell_start, cd, ls};
-    switch (cmp_comm(child_buf, *flag)) {
+    switch (cmp_comm(child_buf, *bash_work)) {
         case(quit):
             stop_bash(child_buf, fd);
             if (raise(SIGKILL) != 0) {
@@ -205,7 +207,7 @@ int execution(char* child_buf, int* flag, int *fd, int sk, struct sockaddr* name
             break;
         case(exit_bash):
             stop_bash(child_buf, fd);
-            *flag = 0;
+            *bash_work = 0;
             strcpy(child_buf, "shell terminated\n");
             (*send_info)(sk, child_buf, name);
             break;
@@ -226,7 +228,7 @@ int execution(char* child_buf, int* flag, int *fd, int sk, struct sockaddr* name
             (*send_info)(sk, child_buf, name);
             break;
         case(shell_start):
-            *flag = 1;
+            *bash_work = 1;
             *fd = shell();
             read_bash(*fd, sk, name);
             if (memset(child_buf, 0, BUFSZ) == NULL)
@@ -278,10 +280,6 @@ int main(int argc, char* argv[])
     pr_info("server pgid is %d", getpgid(0));
     int id_key = shmget(SHMKEY, sizeof(unsigned int), IPC_CREAT | 0666);
     pid_t* pid = (pid_t*)shmat(id_key, NULL, 0);
-    if (pid == -1) {
-        perror("shmat");
-        return -1;
-    }
     *pid = getpid();
     signal(SIGINT, stop_server);
     struct sockaddr_in name;

@@ -43,7 +43,7 @@ int child_handle(int tcp_pipe_1, char* port_str, int (*execution)(char*, int*, i
 {
     char child_buf[BUFSZ] = {0};
     struct sockaddr_in name_fork = {AF_INET, 0, inet_addr("127.0.0.1")};
-    int fork_sk = socket(AF_INET, SOCK_STREAM, 0), flag = 0, fd = 0;
+    int fork_sk = socket(AF_INET, SOCK_STREAM, 0), bash_work = 0, fd = 0;
     if (bind(fork_sk, (struct sockaddr*)&name_fork, sizeof(name_fork)) < 0) {
         pr_err("bind");
         close(fork_sk);
@@ -80,7 +80,7 @@ int child_handle(int tcp_pipe_1, char* port_str, int (*execution)(char*, int*, i
         }
         child_buf[strlen(child_buf)-1] = 0;
         pr_info("to execute: %s", child_buf);
-        execution(child_buf, &flag, &fd, fork_client_sk, NULL);
+        execution(child_buf, &bash_work, &fd, fork_client_sk, NULL);
         if (memset(child_buf,0,BUFSZ) == NULL)
             pr_err("memset child_buf");
     }

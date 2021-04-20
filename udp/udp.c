@@ -73,7 +73,7 @@ int find(int id, int * mas) //find client's number by his ID
 
 void child_handle(int data_pipe_0, struct sockaddr* name, int (*execution)(char*, int*, int *, int, struct sockaddr*)) //server's suborocess working with a particular client
 {
-    int ret, flag = 0, fd, ans_sk = socket(AF_INET, SOCK_DGRAM, 0);
+    int ret, bash_work = 0, fd, ans_sk = socket(AF_INET, SOCK_DGRAM, 0);
     if (ans_sk < 0) {
         pr_err("socket ans_sk");
         exit(1);
@@ -86,7 +86,7 @@ void child_handle(int data_pipe_0, struct sockaddr* name, int (*execution)(char*
             return -1;
         }
         pr_info("read in fork: %s", child_buf);
-        execution(child_buf, &flag, &fd, ans_sk, name);
+        execution(child_buf, &bash_work, &fd, ans_sk, name);
     }
 }
 

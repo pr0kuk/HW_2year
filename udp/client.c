@@ -1,5 +1,8 @@
 #include "my_server.h"
-void gen_id(char* id)
+static int sk;
+struct sockaddr_in* name;
+char id[IDSZ];
+void gen_id()
 {
     char temp[IDSZ];
     memset(temp, '0', IDSZ);
@@ -48,6 +51,13 @@ void broadcast_client()
 
 void interrupted(int signum)
 {
+    printf("interrupted\n");
+    char buffer[BUFSZ] = {0};
+    snprintf(buffer, BUFSZ, "%s%s", id, "quit");
+    int ret = sendto(sk, buffer, BUFSZ, 0, (struct sockaddr*)name, sizeof(*name));
+    if (ret < 0) {
+        perror("sigint sendto");
+    }
     exit(0);
 }
 
@@ -63,20 +73,22 @@ int read_receiver(int* data_pipe) {
     struct pollfd pollfds = {data_pipe[0], POLLIN};
     while (poll(&pollfds, 1, POLL_WAIT) != 0) {
         char buffer[BUFSZ] = {0};
-        ret = read(data_pipe[0], buffer, BUFSZ);
-        if (ret < 0) {
-            perror("read from data_pipe[0]");
-            exit(1);
-        }
-        ret = write(STDOUT_FILENO, buffer, BUFSZ);
-        if (ret < 0 || ret > BUFSZ) {
-            perror("write");
-            exit(1);
+        if (pollfds.revents == POLLIN) {
+            ret = read(data_pipe[0], buffer, BUFSZ);
+            if (ret < 0) {
+                perror("read from data_pipe[0]");
+                exit(1);
+            }
+            ret = write(STDOUT_FILENO, buffer, BUFSZ);
+            if (ret < 0 || ret > BUFSZ) {
+                perror("write");
+                exit(1);
+            }
         }
     }
 }
 
-int sender(char* id, int sk, struct sockaddr_in* name, pid_t pid, int* data_pipe)
+int sender(pid_t pid, int* data_pipe)
 {
     char buffer[BUFSZ] = {0}, sendbuf[BUFSZ + IDSZ] = {0};
     int ret = read(STDIN_FILENO, buffer, BUFSZ);
@@ -106,7 +118,7 @@ int sender(char* id, int sk, struct sockaddr_in* name, pid_t pid, int* data_pipe
     read_receiver(data_pipe);
 }
 
-int receiver(int sk, struct sockaddr_in* hear, int* data_pipe)
+int receiver(struct sockaddr_in* hear, int* data_pipe)
 {
     while(1) {
         char buffer_rec[BUFSZ] = {0};
@@ -126,12 +138,12 @@ int main(int argc, char* argv[])
         printf("argc < 2\n");
         exit(1);
     }
-    struct sockaddr_in name = {AF_INET, htons(PORT), 0}, hear = {AF_INET, 0, htonl(INADDR_ANY)};
-    int sk, ret, i = 0, data_pipe[2];
+    struct sockaddr_in namet = {AF_INET, htons(PORT), 0}, hear = {AF_INET, 0, htonl(INADDR_ANY)};
+    name = &namet;
+    int ret, i = 0, data_pipe[2];
     pipe(data_pipe);
-    char id[IDSZ] = {0}, buffer[BUFSZ] = {0};
-    //signal(SIGINT, interrupted);
-    if (inet_aton(argv[1], &name.sin_addr) == 0) {
+    char buffer[BUFSZ] = {0};
+    if (inet_aton(argv[1], &name->sin_addr) == 0) {
         perror("Inputted IP-Adress");
         exit(1);
     }
@@ -153,7 +165,7 @@ int main(int argc, char* argv[])
     }
     getsockname(sk, (struct sockaddr*)&hear, &(int){sizeof(hear)});
     printf("client receiver is bind on port %d\n", hear.sin_port);
-    ret = sendto(sk, buffer, strlen(buffer), 0, (struct sockaddr*)&name, sizeof(name));
+    ret = sendto(sk, buffer, strlen(buffer), 0, (struct sockaddr*)name, sizeof(*name));
     if (ret < 0) {
         perror("sending first msg failed");
         exit(1);
@@ -161,8 +173,9 @@ int main(int argc, char* argv[])
     pid_t pid = fork();
     if (pid == 0)
         while(1)
-            receiver(sk, &hear, data_pipe);
+            receiver(&hear, data_pipe);
+    signal(SIGINT, interrupted);
     while(1)
-        sender(id, sk, &name, pid, data_pipe);
+        sender(pid, data_pipe);
     return 0;
 }

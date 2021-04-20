@@ -1,18 +1,26 @@
 #include "my_server.h"
+static int sk;
 
+void interrupted(int signum)
+{
+    int ret = write(sk, "quit\n", BUFSZ);
+    if (ret < 0 || ret > BUFSZ) {
+        perror("write");
+        exit(1);
+    }
+    raise(SIGKILL);
+}
 
-int receiver(int sk)
+int receiver()
 {
     char* buffer[BUFSZ] = {0};
     int ret = read(STDIN_FILENO, buffer, BUFSZ);
-    if (ret < 0 || ret > BUFSZ)
-    {
+    if (ret < 0 || ret > BUFSZ) {
         perror("read");
         exit(1);
     }
     ret = write(sk, buffer, BUFSZ);
-    if (ret < 0 || ret > BUFSZ)
-    {
+    if (ret < 0 || ret > BUFSZ) {
         perror("write");
         exit(1);
     }
@@ -20,23 +28,22 @@ int receiver(int sk)
         printf("server disconnected\n");
         exit(0);
     }
-    if (memset(buffer, 0, BUFSZ) == NULL)
-        perror("memset");
     struct pollfd pollfds = {sk, POLLIN};
     while (poll(&pollfds, 1, POLL_WAIT) != 0) {
-        ret = read(sk, buffer, BUFSZ);
-        if (ret < 0) {
-            perror("read from sk");
-            exit(1);
-        }
-        ret = write(STDOUT_FILENO, buffer, BUFSZ);
-        if (ret < 0 || ret > BUFSZ)
-        {
-            perror("write");
-            exit(1);
-        }
         if (memset(buffer, 0, BUFSZ) == NULL)
             perror("memset");
+        if (pollfds.revents == POLLIN) {
+            ret = read(sk, buffer, BUFSZ);
+            if (ret < 0) {
+                perror("read from sk");
+                exit(1);
+            }
+            ret = write(STDOUT_FILENO, buffer, BUFSZ);
+            if (ret < 0 || ret > BUFSZ) {
+                perror("write");
+                exit(1);
+            }
+        }
     }
 }
 
@@ -45,7 +52,7 @@ int receiver(int sk)
 int main(int argc, char* argv[])
 {
     struct sockaddr_in name = {AF_INET, htons(PORT), 0};
-    int sk, ret;
+    int ret;
     char port_str[BUFSZ] = {0};
     char buffer[BUFSZ] = {0};
     sk = socket(AF_INET, SOCK_STREAM, 0);
@@ -86,7 +93,8 @@ int main(int argc, char* argv[])
         close(sk);
         return 1;
     }
+    signal(SIGINT, interrupted);
     while(1)
-        receiver(sk);
+        receiver();
     return 0;
 }
