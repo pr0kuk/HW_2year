@@ -55,7 +55,7 @@ int shell() //starts server's pty
     return fd;
 }
 
-void read_bash(int fd, int sk, struct sockaddr* name)
+int read_bash(int fd, int sk, struct sockaddr* name)
 {
     int ret;
     char readbuf[BUFSZ] = {0};

@@ -11,7 +11,7 @@ void gen_id()
     printf("id is %s\n", id);
 }
 
-void cypher()
+void crypto()
 {
     return;
 }

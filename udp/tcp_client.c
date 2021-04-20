@@ -11,7 +11,7 @@ void interrupted(int signum)
     raise(SIGKILL);
 }
 
-void cypher()
+void crypto()
 {
     return;
 }
