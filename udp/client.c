@@ -1,7 +1,11 @@
 #include "my_server.h"
-int gen_id()
+void gen_id(char* id)
 {
-    return getpid()*rand();
+    char temp[IDSZ];
+    memset(temp, '0', IDSZ);
+    int rid = getpid()*rand();
+    snprintf(id, IDSZ, "%d%s", rid, temp);
+    printf("id is %s\n", id);
 }
 
 void broadcast_client()
@@ -54,7 +58,25 @@ void cypher(int auth, int my_psd, char* buffer, char* sendbuf)
         perror("sprintf sendbuf+psd");
 }
 
-int sender(int id, int sk, struct sockaddr_in* name, pid_t pid)
+int read_receiver(int* data_pipe) {
+    int ret;
+    struct pollfd pollfds = {data_pipe[0], POLLIN};
+    while (poll(&pollfds, 1, POLL_WAIT) != 0) {
+        char buffer[BUFSZ] = {0};
+        ret = read(data_pipe[0], buffer, BUFSZ);
+        if (ret < 0) {
+            perror("read from data_pipe[0]");
+            exit(1);
+        }
+        ret = write(STDOUT_FILENO, buffer, BUFSZ);
+        if (ret < 0 || ret > BUFSZ) {
+            perror("write");
+            exit(1);
+        }
+    }
+}
+
+int sender(char* id, int sk, struct sockaddr_in* name, pid_t pid, int* data_pipe)
 {
     char buffer[BUFSZ] = {0}, sendbuf[BUFSZ + IDSZ] = {0};
     int ret = read(STDIN_FILENO, buffer, BUFSZ);
@@ -63,7 +85,7 @@ int sender(int id, int sk, struct sockaddr_in* name, pid_t pid)
         exit(1);
     }
     buffer[strlen(buffer)-1] = 0;
-    ret = sprintf(sendbuf, "%d!%s", id, buffer);
+    ret = snprintf(sendbuf, BUFSZ, "%s%s", id, buffer);
     if (ret < 0) {
         perror("sprintf");
         return -1;
@@ -71,9 +93,9 @@ int sender(int id, int sk, struct sockaddr_in* name, pid_t pid)
     if (strncmp(buffer, "broadcast", sizeof("broadcast") - 1) == 0)
         broadcast_client();
     else {
-        ret = sendto(sk, sendbuf, BUFSZ + IDSZ, 0, (struct sockaddr*)name, sizeof(*name));
+        ret = sendto(sk, sendbuf, BUFSZ, 0, (struct sockaddr*)name, sizeof(*name));
         //printf("sent %s\n", sendbuf);
-        if (ret < 0 || ret > BUFSZ + IDSZ)
+        if (ret < 0 || ret > BUFSZ)
             perror("sendto");
         if (strncmp(buffer, "quit", sizeof("quit") - 1) == 0) {
             kill(pid, SIGTERM);
@@ -81,22 +103,19 @@ int sender(int id, int sk, struct sockaddr_in* name, pid_t pid)
             exit(0);
         }
     }
+    read_receiver(data_pipe);
 }
 
-int receiver(int sk, struct sockaddr_in* hear)
+int receiver(int sk, struct sockaddr_in* hear, int* data_pipe)
 {
-    char buffer_rec[BUFSZ] = {0};
-    int ret;
     while(1) {
-        buffer_rec[0] = 1;
-        while(buffer_rec[0] != 0) {
-            ret = recvfrom(sk, buffer_rec, BUFSZ, MSG_DONTWAIT, (struct sockaddr*)hear, &(int){sizeof(*hear)});
-            if (ret >= 0)
-                write(STDOUT_FILENO, buffer_rec, BUFSZ);
-            else
-                break;
-            if (memset(buffer_rec, 0, BUFSZ) == NULL)
-                perror("memset");
+        char buffer_rec[BUFSZ] = {0};
+        recvfrom(sk, buffer_rec, BUFSZ, MSG_DONTWAIT, (struct sockaddr*)hear, &(int){sizeof(*hear)});
+        if (buffer_rec[0] == 0)
+            break;
+        if (write(data_pipe[1], buffer_rec, BUFSZ) < 0) {
+            perror("write data_pipe[1]");
+            return -1;
         }
     }
 }
@@ -108,8 +127,9 @@ int main(int argc, char* argv[])
         exit(1);
     }
     struct sockaddr_in name = {AF_INET, htons(PORT), 0}, hear = {AF_INET, 0, htonl(INADDR_ANY)};
-    int sk, ret, i = 0;
-    char pid_str[IDSZ];
+    int sk, ret, i = 0, data_pipe[2];
+    pipe(data_pipe);
+    char id[IDSZ] = {0}, buffer[BUFSZ] = {0};
     //signal(SIGINT, interrupted);
     if (inet_aton(argv[1], &name.sin_addr) == 0) {
         perror("Inputted IP-Adress");
@@ -120,9 +140,8 @@ int main(int argc, char* argv[])
         perror("socket sk");
         exit(1);
     }
-    int id = gen_id();
-    printf("id is %d\n", id);
-    ret = sprintf(pid_str, "%s%d", "!connect!", id);
+    gen_id(id);
+    ret = sprintf(buffer, "%s%s", "!connect!", id);
     if (ret < 0) {
         perror("sprintf");
         exit(1);
@@ -134,15 +153,16 @@ int main(int argc, char* argv[])
     }
     getsockname(sk, (struct sockaddr*)&hear, &(int){sizeof(hear)});
     printf("client receiver is bind on port %d\n", hear.sin_port);
-    ret = sendto(sk, pid_str, strlen(pid_str), 0, (struct sockaddr*)&name, sizeof(name));
+    ret = sendto(sk, buffer, strlen(buffer), 0, (struct sockaddr*)&name, sizeof(name));
     if (ret < 0) {
         perror("sending first msg failed");
         exit(1);
     }
     pid_t pid = fork();
     if (pid == 0)
-        receiver(sk, &hear);
+        while(1)
+            receiver(sk, &hear, data_pipe);
     while(1)
-        sender(id, sk, &name, pid);
+        sender(id, sk, &name, pid, data_pipe);
     return 0;
 }

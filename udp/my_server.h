@@ -27,9 +27,9 @@
 
 #define PATH "/tmp/mysock"
 #define BUFSZ 256
-#define IDSZ 16
+#define IDSZ 10
 #define MAX_CLIENTS 10000
-#define CLOCKS_TO_WAIT 100000
+#define CLOCKS_TO_WAIT 1000
 #define POLL_WAIT 100
 #define KEY 9973
 #define PORT 23456

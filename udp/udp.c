@@ -3,18 +3,11 @@
 
 int decypher(char* buffer, char* my_ip_str, char* buffer_without_pid) //gets from client string client's id and command
 {
-    int i = 0;
-    while (buffer[i++] != '!') {
-        if (buffer[i] != '!' && buffer[i] != '-' && (buffer[i] < '0' || buffer[i] > '9')) {
-                //pr_info("%c", buffer[i]); 
-                return -1;
-            }
-    }
-    if (strncpy(my_ip_str, buffer, i - 1) == NULL) {
+    if (strncpy(my_ip_str, buffer, IDSZ - 1) == NULL) {
         pr_err("strncpy my_ip_str");
         return -1;
     }
-    if (strcpy(buffer_without_pid, buffer + i) == NULL) {
+    if (strcpy(buffer_without_pid, buffer + IDSZ - 1) == NULL) {
         pr_err("strcpy buffer_without_pid");
         return -1;
     }
@@ -111,10 +104,11 @@ int broadcast(int ans_sk, struct sockaddr_in name)
 int com_connect(int* num, int* mas, char* buffer, int (*data_pipe)[2], struct sockaddr_in* name, int (*execution)(char*, int*, int *, int, struct sockaddr*))
 {
     char my_ip_str[BUFSZ] = {0};
-    if (strcpy(my_ip_str, buffer + sizeof("!connect!") -1 ) == NULL) {
+    if (strncpy(my_ip_str, buffer + sizeof("!connect!") - 1, IDSZ) == NULL) {
         pr_err("strcpy my_ip_str");
         return -1;
     }
+    pr_info("my_ip_str, com_connect: %s", my_ip_str);
     int id = atoi(my_ip_str);
     *num = connect_id(id, mas);
     int int_num = *num;
