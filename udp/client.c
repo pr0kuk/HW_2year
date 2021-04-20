@@ -11,6 +11,11 @@ void gen_id()
     printf("id is %s\n", id);
 }
 
+void cypher()
+{
+    return;
+}
+
 void broadcast_client()
 {
     char serv_ip[1];

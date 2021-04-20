@@ -1,6 +1,6 @@
 #include "my_server.h"
 #include "log.h"
-// tcsetattr errors
+//tcsetattr errors
 static void (*send_info)(int, char*, struct sockaddr*);
 int shell() //starts server's pty
 {
@@ -34,16 +34,16 @@ int shell() //starts server's pty
         pr_err("tcsetattr");
     pid = fork();
     if (pid == 0) {
-        //pr_info("bash pgid is %d", getpgid(0));
+        pr_info("bash pgid is %d", getpgid(0));
         if (dup2(resfd, STDIN_FILENO) < 0)
             pr_err("dup2 resfd 0");
         if (dup2(resfd, STDOUT_FILENO) < 0)
             pr_err("dup2 resfd 1");
         if (dup2(resfd, STDERR_FILENO) < 0)
             pr_err("dup2 resfd 2");
-        //if (setsid() < 0)
-        //    pr_err("setsid");
-        //pr_info("bash pgid after setsid is %d", getpgid(0));
+        if (setsid() < 0)
+            pr_err("setsid");
+        pr_info("bash pgid after setsid is %d", getpgid(0));
         execl("/bin/bash", "/bin/bash", NULL);
         pr_err("execl");
         exit(1);
@@ -208,7 +208,10 @@ int execution(char* child_buf, int* bash_work, int *fd, int sk, struct sockaddr*
         case(exit_bash):
             stop_bash(child_buf, fd);
             *bash_work = 0;
-            strcpy(child_buf, "shell terminated\n");
+            if (strcpy(child_buf, "shell terminated\n") != NULL) {
+                pr_err("strcpy");
+                return -1;
+            }
             (*send_info)(sk, child_buf, name);
             break;
         case(comm_to_bash):

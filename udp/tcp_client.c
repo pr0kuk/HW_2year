@@ -11,6 +11,11 @@ void interrupted(int signum)
     raise(SIGKILL);
 }
 
+void cypher()
+{
+    return;
+}
+
 int receiver()
 {
     char* buffer[BUFSZ] = {0};
