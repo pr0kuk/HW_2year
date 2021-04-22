@@ -77,26 +77,6 @@ int main(int argc, char* argv[])
         perror("write hello");
         return -1;
     }
-    if (read(sk, port_str, BUFSZ) < 0) {
-        perror("read port");
-        return -1;
-    }
-    printf("port of my server subprocess: %s\n", port_str);
-    if (close(sk) < 0) {
-        perror("close");
-        return -1;
-    }
-    name.sin_port = (atoi(port_str));
-    sk = socket(AF_INET, SOCK_STREAM, 0);
-    if (sk < 0) {
-        perror("socket");
-        exit(1);
-    }
-    if (connect(sk, (struct sockaddr*)&name, sizeof(name)) < 0) {
-        perror("connect");
-        close(sk);
-        return 1;
-    }
     signal(SIGINT, interrupted);
     while(1)
         receiver();
