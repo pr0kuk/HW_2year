@@ -26,6 +26,7 @@ int receiver()
         perror("write");
         exit(1);
     }
+    crypto(buffer);
     if (strncmp(buffer, "quit", sizeof("quit") - 1) == 0) {
         printf("server disconnected\n");
         exit(0);

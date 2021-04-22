@@ -84,7 +84,7 @@ void child_handle(int data_pipe_0, struct sockaddr* name, int (*execution)(char*
         ret = read(data_pipe_0, child_buf, BUFSZ);
         if (ret < 0) {
             pr_err("read from data_pipe[my_ip][0]");
-            return -1;
+            exit(-1);
         }
         pr_info("read in fork: %s", child_buf);
         execution(child_buf, &bash_work, &fd, ans_sk, name);
@@ -181,7 +181,7 @@ int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* 
         return 0;
     }
     if (strncmp(buffer, "!connect!", sizeof("!connect!") - 1) == 0) // first connection
-        com_connect(&num, mas, buffer, data_pipe, name, execution);
+        com_connect(num, mas, buffer, data_pipe, name, execution);
     else //server works with all commands
         master_handler(data_pipe, num, buffer, mas);
     return 0;

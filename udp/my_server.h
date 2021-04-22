@@ -35,6 +35,6 @@
 #define PORT 23456
 #define SHMKEY 42
 #define CRPTKEY 0x7F
-//#define crypto(buffer) do {for (int i = 0; i < BUFSZ; (buffer[i++]) ^= CRPTKEY);} while(0)
-#define crypto(buffer) NOP
+#define crypto(buffer) do {for (int i = 0; i < BUFSZ; (buffer[i++]) ^= CRPTKEY);} while(0)
+//#define crypto(buffer) NOP
 #endif

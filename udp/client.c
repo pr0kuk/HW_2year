@@ -12,7 +12,6 @@ void gen_id()
 }
 
 
-
 void broadcast_client()
 {
     char serv_ip[1];
@@ -81,6 +80,7 @@ int read_receiver(int* data_pipe) {
                 perror("read from data_pipe[0]");
                 exit(1);
             }
+            crypto(buffer);
             ret = write(STDOUT_FILENO, buffer, BUFSZ);
             if (ret < 0 || ret > BUFSZ) {
                 perror("write");
@@ -126,7 +126,6 @@ int receiver(struct sockaddr_in* hear, int* data_pipe)
     while(1) {
         char buffer_rec[BUFSZ] = {0};
         recvfrom(sk, buffer_rec, BUFSZ, MSG_DONTWAIT, (struct sockaddr*)hear, &(int){sizeof(*hear)});
-        crypto(buffer_rec);
         if (buffer_rec[0] == 0)
             break;
         if (write(data_pipe[1], buffer_rec, BUFSZ) < 0) {
