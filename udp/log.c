@@ -7,9 +7,18 @@ int log_error(int level, char* fmt, ...)
 {
     va_list params;
     va_start(params, fmt);
-    get_log_level(level);
-    get_time();
-    paste_pid();
+    if (get_log_level(level) < 0) {
+        perror("get_log_level");
+        return -1;
+    }
+    if (get_time() < 0) {
+        perror("get_time");
+        return -1;
+    }
+    if (paste_pid() < 0) {
+        perror("paste_pid");
+        return -1;
+    }
     if (vsnprintf(buf + pos, BUFSZ - pos, fmt, params) < 0) {
         perror("vsnprintf");
         return -1;
@@ -20,8 +29,12 @@ int log_error(int level, char* fmt, ...)
             return -1;
         }
     }
-    if (fd < 0)
-        log_init(NULL);
+    if (fd < 0) {
+        if (log_init(NULL) < 0) {
+            perror("log_init");
+            return -1;
+        }
+    }
     if (write(fd, buf, BUFSZ) < 0) {
         perror("write buf to log");
         return -1;
@@ -34,7 +47,7 @@ int log_error(int level, char* fmt, ...)
 
     }
     pos = 0;
-    for (int i = 0; i < BUFSZ; buf[i++] = 0);
+    memset(buf, 0, BUFSZ);
     return 0;
 }
 

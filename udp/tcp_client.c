@@ -3,10 +3,8 @@ static int sk;
 
 void interrupted(int signum)
 {
-    int ret = write(sk, "quit\n", BUFSZ);
-    if (ret < 0 || ret > BUFSZ) {
+    if (write(sk, "quit", BUFSZ) < 0) {
         perror("write");
-        exit(1);
     }
     raise(SIGKILL);
 }
@@ -15,37 +13,33 @@ void interrupted(int signum)
 int receiver()
 {
     char buffer[BUFSZ] = {0};
-    int ret = read(STDIN_FILENO, buffer, BUFSZ);
-    if (ret < 0 || ret > BUFSZ) {
+    if (read(STDIN_FILENO, buffer, BUFSZ) < 0 ) {
         perror("read");
-        exit(1);
+        return -1;
     }
+    buffer[strlen(buffer) - 1] = '\0';
     crypto(buffer);
-    ret = write(sk, buffer, BUFSZ);
-    if (ret < 0 || ret > BUFSZ) {
+    if (write(sk, buffer, BUFSZ) < 0) {
         perror("write");
-        exit(1);
+        return -1;
     }
     crypto(buffer);
     if (strncmp(buffer, "quit", sizeof("quit") - 1) == 0) {
         printf("server disconnected\n");
-        exit(0);
+        raise(SIGKILL);
     }
     struct pollfd pollfds = {sk, POLLIN};
     while (poll(&pollfds, 1, POLL_WAIT) != 0) {
-        if (memset(buffer, 0, BUFSZ) == NULL)
-            perror("memset");
+        memset(buffer, 0, BUFSZ);
         if (pollfds.revents == POLLIN) {
-            ret = read(sk, buffer, BUFSZ);
-            if (ret < 0) {
+            if (read(sk, buffer, BUFSZ) < 0) {
                 perror("read from sk");
-                exit(1);
+                return -1;
             }
             crypto(buffer);
-            ret = write(STDOUT_FILENO, buffer, BUFSZ);
-            if (ret < 0 || ret > BUFSZ) {
+            if (write(STDOUT_FILENO, buffer, BUFSZ) < 0) {
                 perror("write");
-                exit(1);
+                return -1;
             }
         }
     }
@@ -56,29 +50,31 @@ int receiver()
 int main(int argc, char* argv[])
 {
     struct sockaddr_in name = {AF_INET, htons(PORT), 0};
-    int ret;
-    char port_str[BUFSZ] = {0};
     char buffer[BUFSZ] = {0};
     sk = socket(AF_INET, SOCK_STREAM, 0);
     if (sk < 0) {
         perror("socket");
-        exit(1);
+        return -1;
     }
     if (inet_aton(argv[1], &name.sin_addr) == 0) {
         perror("Inputted IP-Adress");
-        exit(1);
+        return -1;
     }
     if (connect(sk, (struct sockaddr*)&name, sizeof(name)) < 0) {
         perror("connect");
         close(sk);
-        return 1;
+        return -1;
     }
     if (write(sk, "hello", sizeof("hello")) < 0) { //send fist msg to server
         perror("write hello");
         return -1;
     }
     signal(SIGINT, interrupted);
-    while(1)
-        receiver();
+    while(1) {
+        if (receiver() < 0) {
+            perror("receiver");
+            return -1;
+        }
+    }
     return 0;
 }
