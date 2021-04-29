@@ -5,6 +5,38 @@
 static struct funcs* func;
 static int bash_work, bash_pid;
 enum {CMD_QUIT, CMD_SHELL, CMD_TO_BASH};
+
+
+void stop_server(int signum)
+{
+    pr_info("stop_server");
+    if (kill(bash_pid, SIGKILL) < 0)
+        pr_err("kill");
+    if (killpg(0, SIGKILL) < 0)
+        pr_err("killpg");
+    raise(SIGKILL);
+}
+
+void off_bash(int signum)
+{
+    pr_info("SIGCHLD");
+    bash_work = 0;
+}
+
+void* choose_mode(char* argv1)
+{
+    if (strcmp(argv1, "udp") == 0) {
+        pr_info("udp loaded");
+        return dlopen("./libudp.so", RTLD_LAZY);
+    }
+    if (strcmp(argv1, "tcp") == 0) {
+        pr_info("tcp loaded");
+        return dlopen("./libtcpl.so", RTLD_LAZY);
+    }
+    perror("argument should be tcp or udp");
+    return NULL;
+}
+
 int shell() //starts server's pty
 {
     int ret, resfd, pid, fd = open("/dev/ptmx", O_RDWR | O_NOCTTY);
@@ -88,15 +120,6 @@ int read_bash(int fd, int sk, struct sockaddr* name)
     return 0;
 }
 
-void stop_server(int signum)
-{
-    pr_info("stop_server");
-    if (kill(bash_pid, SIGKILL) < 0)
-        pr_err("kill");
-    if (killpg(0, SIGKILL) < 0)
-        pr_err("killpg");
-    raise(SIGKILL);
-}
 
 int cmp_comm(char* child_buf)
 {
@@ -109,11 +132,7 @@ int cmp_comm(char* child_buf)
     return -1;
 }
 
-void off_bash(int signum)
-{
-    pr_info("SIGCHLD");
-    bash_work = 0;
-}
+
 
 int execution(char* child_buf, int sk, struct sockaddr* name, int* fd)
 {
@@ -160,19 +179,7 @@ int execution(char* child_buf, int sk, struct sockaddr* name, int* fd)
     return 0;
 }
 
-void* choose_mode(char* argv1)
-{
-    if (strcmp(argv1, "udp") == 0) {
-        pr_info("udp loaded");
-        return dlopen("./libudp.so", RTLD_LAZY);
-    }
-    if (strcmp(argv1, "tcp") == 0) {
-        pr_info("tcp loaded");
-        return dlopen("./libtcpl.so", RTLD_LAZY);
-    }
-    perror("argument should be tcp or udp");
-    return NULL;
-}
+
 
 int main(int argc, char* argv[])
 {

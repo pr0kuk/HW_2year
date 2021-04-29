@@ -1,34 +1,6 @@
 #include "my_server.h"
 #include "log.h"
 
-int decypher(char* buffer, char* my_ip_str, char* buffer_without_pid) //gets from client string client's id and command
-{
-    if (strncpy(my_ip_str, buffer, IDSZ - 1) == NULL) {
-        pr_err("strncpy my_ip_str");
-        return -1;
-    }
-    if (strcpy(buffer_without_pid, buffer + IDSZ - 1) == NULL) {
-        pr_err("strcpy buffer_without_pid");
-        return -1;
-    }
-    return atoi(my_ip_str);
-}
-
-
-int send_info(int sk, char* buffer, struct sockaddr* name)
-{
-    crypto(buffer);
-    //pr_info("send info:\n%s", buffer);
-    //pr_info("sk is %d", sk);
-    //pr_info("name.sin_family=%d, name.sin_port=%d,name.sin_addr.s_addr=%d", ((struct sockaddr_in*)name)->sin_family, ((struct sockaddr_in*)name)->sin_port, ((struct sockaddr_in*)name)->sin_addr.s_addr);
-    int ret = sendto(sk, buffer, BUFSZ, 0, name, sizeof(*name)); 
-    if (ret < 0 || ret > BUFSZ) {
-        pr_err("sendto")
-        return -1;
-    }
-    memset(buffer, 0, BUFSZ);
-    return 0;
-}
 
 
 int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
@@ -51,6 +23,28 @@ int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
     }
 }
 
+int broadcast(int ans_sk, struct sockaddr_in name)
+{
+    pr_info("broadcast name: %d %d %d", name.sin_family, name.sin_port, name.sin_addr.s_addr);
+    if (sendto(ans_sk, "", 1, 0, (struct sockaddr*)&name, sizeof(name)) != 1) {
+        pr_err("answer to broadcast");
+        return -1;
+    }
+    return 0;
+}
+
+int decypher(char* buffer, char* my_ip_str, char* buffer_without_pid) //gets from client string client's id and command
+{
+    if (strncpy(my_ip_str, buffer, IDSZ - 1) == NULL) {
+        pr_err("strncpy my_ip_str");
+        return -1;
+    }
+    if (strcpy(buffer_without_pid, buffer + IDSZ - 1) == NULL) {
+        pr_err("strcpy buffer_without_pid");
+        return -1;
+    }
+    return atoi(my_ip_str);
+}
 
 int connect_id(int id, int * mas) //remembers client's ID and gives him his number
 {
@@ -69,6 +63,21 @@ int find(int id, int * mas) //find client's number by his ID
         if (mas[i] == id)
             return i;
     return -1;
+}
+
+int send_info(int sk, char* buffer, struct sockaddr* name)
+{
+    crypto(buffer);
+    //pr_info("send info:\n%s", buffer);
+    //pr_info("sk is %d", sk);
+    //pr_info("name.sin_family=%d, name.sin_port=%d,name.sin_addr.s_addr=%d", ((struct sockaddr_in*)name)->sin_family, ((struct sockaddr_in*)name)->sin_port, ((struct sockaddr_in*)name)->sin_addr.s_addr);
+    int ret = sendto(sk, buffer, BUFSZ, 0, name, sizeof(*name)); 
+    if (ret < 0 || ret > BUFSZ) {
+        pr_err("sendto")
+        return -1;
+    }
+    memset(buffer, 0, BUFSZ);
+    return 0;
 }
 
 
@@ -96,16 +105,6 @@ int child_handle(int data_pipe_0, struct sockaddr* name, int(*execution)(char*, 
     return 0;
 }
 
-
-int broadcast(int ans_sk, struct sockaddr_in name)
-{
-    pr_info("broadcast name: %d %d %d", name.sin_family, name.sin_port, name.sin_addr.s_addr);
-    if (sendto(ans_sk, "", 1, 0, (struct sockaddr*)&name, sizeof(name)) != 1) {
-        pr_err("answer to broadcast");
-        return -1;
-    }
-    return 0;
-}
 
 int com_connect(int* num, int* mas, char* buffer, int (*data_pipe)[2], struct sockaddr_in* name, int (*execution)(char*, int, struct sockaddr*, int*), void (*off_bash)(int))
 {

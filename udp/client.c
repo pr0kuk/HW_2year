@@ -3,6 +3,20 @@ static int sk;
 struct sockaddr_in* name;
 char id[IDSZ];
 
+
+void interrupted(int signum)
+{
+    printf("interrupted\n");
+    char buffer[BUFSZ] = {0};
+    if (snprintf(buffer, BUFSZ, "%s%s", id, "quit") < 0) {
+        perror("snprintf");
+    }
+    if (sendto(sk, buffer, BUFSZ, 0, (struct sockaddr*)name, sizeof(*name)) < 0) {
+        perror("sigint sendto");
+    }
+    raise(SIGKILL);
+}
+
 int gen_id()
 {
     char temp[IDSZ];
@@ -16,6 +30,12 @@ int gen_id()
     return 0;
 }
 
+int cypher(int auth, int my_psd, char* buffer, char* sendbuf)
+{
+    if (sprintf(sendbuf, "%d!%s", (my_psd * auth) % KEY, buffer) < 0)
+        perror("sprintf sendbuf+psd");
+        return -1;
+}
 
 int broadcast_client()
 {
@@ -54,26 +74,6 @@ int broadcast_client()
     return 0;
 }
 
-void interrupted(int signum)
-{
-    printf("interrupted\n");
-    char buffer[BUFSZ] = {0};
-    if (snprintf(buffer, BUFSZ, "%s%s", id, "quit") < 0) {
-        perror("snprintf");
-    }
-    if (sendto(sk, buffer, BUFSZ, 0, (struct sockaddr*)name, sizeof(*name)) < 0) {
-        perror("sigint sendto");
-    }
-    raise(SIGKILL);
-}
-
-int cypher(int auth, int my_psd, char* buffer, char* sendbuf)
-{
-    if (sprintf(sendbuf, "%d!%s", (my_psd * auth) % KEY, buffer) < 0)
-        perror("sprintf sendbuf+psd");
-        return -1;
-}
-
 int read_receiver(int* data_pipe) {
     struct pollfd pollfds = {data_pipe[0], POLLIN};
     while (poll(&pollfds, 1, POLL_WAIT) != 0) {
@@ -100,7 +100,6 @@ int sender(pid_t pid, int* data_pipe)
         perror("read");
         return -1;
     }
-    buffer[strlen(buffer) - 1] = '\0';
     if (snprintf(sendbuf, BUFSZ, "%s%s", id, buffer) < 0) {
         perror("sprintf");
         return -1;
@@ -144,21 +143,19 @@ int receiver(struct sockaddr_in* hear, int* data_pipe)
     return 0;
 }
 
-int main(int argc, char* argv[])
+
+void terminal_settings()
 {
-    if (argc < 2) {
-        printf("argc < 2\n");
-        exit(1);
-    }
-    struct sockaddr_in namet = {AF_INET, htons(PORT), 0}, hear = {AF_INET, 0, htonl(INADDR_ANY)};
-    name = &namet;
-    int ret, i = 0, data_pipe[2];
-    pipe(data_pipe);
+    struct termios tattr;
+    tcgetattr (STDIN_FILENO, &tattr);
+    tattr.c_lflag &= ~(ISIG);
+    tcsetattr(STDIN_FILENO, TCSANOW, &tattr);
+}
+
+
+int first_connect(struct sockaddr* hear, struct sockaddr* name)
+{
     char buffer[BUFSZ] = {0};
-    if (inet_aton(argv[1], &name->sin_addr) == 0) {
-        perror("Inputted IP-Adress");
-        return -1;
-    }
     sk = socket(AF_INET, SOCK_DGRAM, 0);
     if (sk < 0) {
         perror("socket sk");
@@ -172,14 +169,38 @@ int main(int argc, char* argv[])
         perror("sprintf");
         return -1;
     }
-    if (bind(sk, (struct sockaddr*)&hear, sizeof(hear)) < 0) {
+    if (bind(sk, hear, sizeof(*hear)) < 0) {
         perror("bind sk");
         return -1;
     }
-    getsockname(sk, (struct sockaddr*)&hear, &(int){sizeof(hear)});
-    printf("client receiver is bind on port %d\n", hear.sin_port);
-    if (sendto(sk, buffer, strlen(buffer), 0, (struct sockaddr*)name, sizeof(*name)) < 0) {
+    getsockname(sk, hear, &(int){sizeof(*hear)});
+    printf("client receiver is bind on port %d\n", ((struct sockaddr_in*)hear)->sin_port);
+    if (sendto(sk, buffer, strlen(buffer), 0, name, sizeof(*name)) < 0) {
         perror("sending first msg failed");
+        return -1;
+    }
+    return 0;
+}
+
+
+int main(int argc, char* argv[])
+{
+    if (argc < 2) {
+        printf("argc < 2\n");
+        return -1;
+    }
+    terminal_settings();
+    struct sockaddr_in namet = {AF_INET, htons(PORT), 0}, hear = {AF_INET, 0, htonl(INADDR_ANY)};
+    name = &namet;
+    int ret, i = 0, data_pipe[2];
+    pipe(data_pipe);
+    char buffer[BUFSZ] = {0};
+    if (inet_aton(argv[1], &name->sin_addr) == 0) {
+        perror("Inputted IP-Adress");
+        return -1;
+    }
+    if (first_connect((struct sockaddr*)&hear, (struct sockaddr*)name) < 0) {
+        perror("first connect");
         return -1;
     }
     pid_t pid = fork();

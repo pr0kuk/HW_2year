@@ -17,7 +17,6 @@ int receiver()
         perror("read");
         return -1;
     }
-    buffer[strlen(buffer) - 1] = '\0';
     crypto(buffer);
     if (write(sk, buffer, BUFSZ) < 0) {
         perror("write");
@@ -45,10 +44,17 @@ int receiver()
     }
 }
 
-
+void terminal_settings()
+{
+    struct termios tattr;
+    tcgetattr (STDIN_FILENO, &tattr);
+    tattr.c_lflag &= ~(ISIG);
+    tcsetattr(STDIN_FILENO, TCSANOW, &tattr);
+}
 
 int main(int argc, char* argv[])
 {
+    terminal_settings();
     struct sockaddr_in name = {AF_INET, htons(PORT), 0};
     char buffer[BUFSZ] = {0};
     sk = socket(AF_INET, SOCK_STREAM, 0);

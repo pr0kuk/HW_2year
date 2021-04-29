@@ -2,18 +2,6 @@
 #include "log.h"
 static int fork_flag = 1;
 
-int send_info(int sk, char* buffer, struct sockaddr* name)
-{
-    crypto(buffer);
-    if (write(sk, buffer, BUFSZ) < 0) {
-        pr_err("send_info");
-        return -1;
-    }
-    //pr_info("send_info: %s", buffer);
-    memset(buffer, 0, BUFSZ);
-    return 0;
-}
-
 int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
 {
     if (log_init(NULL) < 0) {
@@ -38,6 +26,18 @@ int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
         close(*sk);
         return -1;
     }
+    return 0;
+}
+
+int send_info(int sk, char* buffer, struct sockaddr* name)
+{
+    crypto(buffer);
+    if (write(sk, buffer, BUFSZ) < 0) {
+        pr_err("send_info");
+        return -1;
+    }
+    //pr_info("send_info: %s", buffer);
+    memset(buffer, 0, BUFSZ);
     return 0;
 }
 
