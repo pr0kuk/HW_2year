@@ -89,6 +89,10 @@ int read_receiver(int* data_pipe) {
                 return -1;
             }
         }
+        else {
+            perror("!POLLIN");
+            return -1;
+        }
     }
     return 0;
 }

@@ -175,7 +175,7 @@ int master_handler(int (*data_pipe)[2], int* num, char* buffer, int* mas)
             return -1;
         }
         mas[*num] = 0;
-        pr_info("%d closed", *num);
+        pr_info("%d disconnected", *num);
     }
     return 0;
 }

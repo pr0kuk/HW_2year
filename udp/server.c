@@ -65,7 +65,7 @@ int shell() //starts server's pty
     }
     struct termios termios_p;
     termios_p.c_lflag = 0;
-    //cfmakeraw(&termios_p);
+    //termios_p.c_lflag |= (ISIG);
     if (tcsetattr(resfd, 0, &termios_p) < 0);
         pr_err("tcsetattr");
     pid = fork();
@@ -116,6 +116,11 @@ int read_bash(int fd, int sk, struct sockaddr* name)
             }
             memset(readbuf, 0, BUFSZ);
         }
+        else {
+            bash_work = 0;
+            pr_info("bash_work = 0");
+            return 1;
+        }
     }
     return 0;
 }
@@ -140,8 +145,8 @@ int execution(char* child_buf, int sk, struct sockaddr* name, int* fd)
     switch(cmp_comm(child_buf)) {
     case(CMD_TO_BASH):
         pr_info("to execute: %s", child_buf);
-        child_buf[strlen(child_buf) + 1] = '\0';
-        child_buf[strlen(child_buf)] = '\n';
+        /*child_buf[strlen(child_buf) + 1] = '\0';
+        child_buf[strlen(child_buf)] = '\n';*/
         if (write(*fd, child_buf, strlen(child_buf)) < 0) {
             pr_err("write to bash");
             return -1;

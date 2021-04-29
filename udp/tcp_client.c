@@ -41,6 +41,10 @@ int receiver()
                 return -1;
             }
         }
+        else {
+            perror("!POLLIN");
+            return -1;
+        }
     }
 }
 
