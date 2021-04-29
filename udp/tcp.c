@@ -1,7 +1,8 @@
 #include "my_server.h"
 #include "log.h"
 static int fork_flag = 1;
-
+static const long double g = 23, p = 256, a = 4, b = 11;
+static char K;
 int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
 {
     if (log_init(NULL) < 0) {
@@ -65,6 +66,7 @@ int child_handle(int fork_sk, int (*execution)(char*, int, struct sockaddr*, int
 int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* name, int* sk, int (*execution)(char*, int, struct sockaddr*, int*), void (*off_bash)(int))
 {
     char buffer[BUFSZ];
+    char temp[1] = {0}, A = gen_open_key_server(g, a, p);
     pr_info("waiting for hello msg");
     int client_sk = accept(*sk, NULL, NULL);
     if (client_sk < 0) {
@@ -72,10 +74,18 @@ int server_handler(int* num, int* mas, int (*data_pipe)[2], struct sockaddr_in* 
         return -1;
     }
     pr_info("accept pass");
-    if (read(client_sk, buffer, BUFSZ) < 0) {
+    if (read(client_sk, temp, 1) < 0) {
         pr_err("read");
         return -1;
     }
+    char B = temp[0];
+    temp[0] = A;
+    if (write(client_sk, temp, 1) < 0) {
+        pr_err("write");
+        return -1;
+    }
+    pr_info("A, B is %d %d", A, B);
+    K = gen_close_key_server(B, a, p);
     pr_info("received: %s", buffer);
     pid_t child_pid = fork();
     if (child_pid == 0) {

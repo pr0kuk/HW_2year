@@ -35,7 +35,7 @@
 #define PORT 23456
 #define SHMKEY 42
 #define CRPTKEY 0x7F
-#define crypto(buffer) do {for (int i = 0; i < BUFSZ; (buffer[i++]) ^= CRPTKEY);} while(0);
+#define crypto(buffer) do {for (int i = 0; i < BUFSZ; (buffer[i++]) ^= K);} while(0);
 
 struct funcs {
     int (*send_info)(int, char*, struct sockaddr*);
@@ -44,6 +44,11 @@ struct funcs {
     int (*executionf)(char*, int, struct sockaddr*, int*);
     void (*off_bashf)(int);
 };
+
+char gen_open_key_server(long double g, long double a, long double p);
+char gen_open_key_client(long double g, long double b, long double p);
+char gen_close_key_server(char B, long double a, long double p);
+char gen_close_key_client(char A, long double b, long double p);
     
-//#define crypto(buffer) NOP
+
 #endif

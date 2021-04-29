@@ -1,8 +1,7 @@
 #include "my_server.h"
 #include "log.h"
-
-
-
+static const long double g = 23, p = 256, a = 4, b = 11;
+static char K;
 int settings(int* sk, int* ans_sk, struct sockaddr_in* name)
 {
     if (log_init(NULL) < 0) {
@@ -68,7 +67,7 @@ int find(int id, int * mas) //find client's number by his ID
 int send_info(int sk, char* buffer, struct sockaddr* name)
 {
     crypto(buffer);
-    //pr_info("send info:\n%s", buffer);
+    pr_info("send info:\n%s", buffer);
     //pr_info("sk is %d", sk);
     //pr_info("name.sin_family=%d, name.sin_port=%d,name.sin_addr.s_addr=%d", ((struct sockaddr_in*)name)->sin_family, ((struct sockaddr_in*)name)->sin_port, ((struct sockaddr_in*)name)->sin_addr.s_addr);
     int ret = sendto(sk, buffer, BUFSZ, 0, name, sizeof(*name)); 
@@ -90,12 +89,24 @@ int child_handle(int data_pipe_0, struct sockaddr* name, int(*execution)(char*, 
         pr_err("socket ans_sk");
         return -1;
     }
+    char temp[BUFSZ] = {0}, A = gen_open_key_server(g, a, p);;
+    temp[0] = A;
+    send_info(ans_sk, temp, name);
+    temp[0] = 0;
+    if (read(data_pipe_0, temp, BUFSZ) < 0) {
+        pr_err("getting key");
+        return -1;
+    }
+    pr_info("A, B is %d %d", A, temp[0]);
+    K = gen_close_key_server(temp[0], a, p);
+    memset(temp, 0, BUFSZ);
     while(1) {
         char child_buf[BUFSZ] = {0};
         if (read(data_pipe_0, child_buf, BUFSZ) < 0) {
             pr_err("read from data_pipe[my_ip][0]");
             return -1;
         }
+        crypto(child_buf);
         pr_info("read from pipe: %s", child_buf);
         if (execution(child_buf, ans_sk, name, &fd) < 0) {
             pr_err("execution");
@@ -147,7 +158,6 @@ int com_connect(int* num, int* mas, char* buffer, int (*data_pipe)[2], struct so
 
 int master_handler(int (*data_pipe)[2], int* num, char* buffer, int* mas)
 {
-    crypto(buffer);
     char buffer_without_pid[BUFSZ] = {0}, my_ip_str[BUFSZ] = {0};
     int id = decypher(buffer, my_ip_str, buffer_without_pid);
     if (id == -1) {

@@ -1,9 +1,8 @@
 #include "my_server.h"
 #include "log.h"
-//tcsetattr errors
-//static void (*send_info)(int, char*, struct sockaddr*);
 static struct funcs* func;
 static int bash_work, bash_pid;
+
 enum {CMD_QUIT, CMD_SHELL, CMD_TO_BASH};
 
 
@@ -14,7 +13,7 @@ void stop_server(int signum)
         pr_err("kill");
     if (killpg(0, SIGKILL) < 0)
         pr_err("killpg");
-    raise(SIGKILL);
+    exit(0);
 }
 
 void off_bash(int signum)
@@ -64,8 +63,8 @@ int shell() //starts server's pty
         return -1;
     }
     struct termios termios_p;
-    termios_p.c_lflag = 0;
-    //termios_p.c_lflag |= (ISIG);
+    //termios_p.c_lflag = 0;
+    termios_p.c_lflag = ISIG;
     if (tcsetattr(resfd, 0, &termios_p) < 0);
         pr_err("tcsetattr");
     pid = fork();
@@ -145,8 +144,6 @@ int execution(char* child_buf, int sk, struct sockaddr* name, int* fd)
     switch(cmp_comm(child_buf)) {
     case(CMD_TO_BASH):
         pr_info("to execute: %s", child_buf);
-        /*child_buf[strlen(child_buf) + 1] = '\0';
-        child_buf[strlen(child_buf)] = '\n';*/
         if (write(*fd, child_buf, strlen(child_buf)) < 0) {
             pr_err("write to bash");
             return -1;
@@ -158,7 +155,7 @@ int execution(char* child_buf, int sk, struct sockaddr* name, int* fd)
         }
     break;
     case(CMD_QUIT):
-        raise(SIGKILL);
+        exit(0);
     break;
     case(CMD_SHELL):
         *fd = shell();
@@ -217,6 +214,9 @@ int main(int argc, char* argv[])
         perror("settings");
         return -1;
     }
+    /*close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);*/
     /*if (daemon(1,1) == -1) {
         perror("daemon");
         exit(-1);
@@ -224,9 +224,10 @@ int main(int argc, char* argv[])
     int id_key = shmget(SHMKEY, sizeof(unsigned int), IPC_CREAT | 0666);
     pid_t* pid = (pid_t*)shmat(id_key, NULL, 0);
     *pid = getpid();
-    while (1)
+    while (1) {
         if (func->server_handler(&num, mas, data_pipe, &name, &sk, func->executionf, func->off_bashf) < 0) {
             pr_err("server_handler");
         }
+    }
     return 0; 
 }

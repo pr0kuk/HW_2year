@@ -2,7 +2,8 @@
 static int sk;
 struct sockaddr_in* name;
 char id[IDSZ];
-
+static const long double g = 23, p = 256, b = 11, a = 4;
+static char K;
 
 void interrupted(int signum)
 {
@@ -14,7 +15,7 @@ void interrupted(int signum)
     if (sendto(sk, buffer, BUFSZ, 0, (struct sockaddr*)name, sizeof(*name)) < 0) {
         perror("sigint sendto");
     }
-    raise(SIGKILL);
+    exit(0);
 }
 
 int gen_id()
@@ -104,6 +105,7 @@ int sender(pid_t pid, int* data_pipe)
         perror("read");
         return -1;
     }
+    crypto(buffer);
     if (snprintf(sendbuf, BUFSZ, "%s%s", id, buffer) < 0) {
         perror("sprintf");
         return -1;
@@ -115,15 +117,15 @@ int sender(pid_t pid, int* data_pipe)
         }
     }
     else {
-        crypto(sendbuf);
         if (sendto(sk, sendbuf, BUFSZ, 0, (struct sockaddr*)name, sizeof(*name)) < 0) {
             perror("sendto");
             return -1;
         }
+        crypto(buffer);
         if (strncmp(buffer, "quit", sizeof("quit") - 1) == 0) {
             kill(pid, SIGTERM);
             printf("server disconnected\n");
-            raise(SIGKILL);
+            exit(0);
         }
     }
     if (read_receiver(data_pipe) < 0) {
@@ -169,7 +171,7 @@ int first_connect(struct sockaddr* hear, struct sockaddr* name)
         perror("gen_id");
         return -1;
     }
-    if (sprintf(buffer, "%s%s", "!connect!", id) < 0) {
+    if (snprintf(buffer, BUFSZ, "%s%s", "!connect!", id) < 0) {
         perror("sprintf");
         return -1;
     }
@@ -180,9 +182,27 @@ int first_connect(struct sockaddr* hear, struct sockaddr* name)
     getsockname(sk, hear, &(int){sizeof(*hear)});
     printf("client receiver is bind on port %d\n", ((struct sockaddr_in*)hear)->sin_port);
     if (sendto(sk, buffer, strlen(buffer), 0, name, sizeof(*name)) < 0) {
-        perror("sending first msg failed");
+        perror("sending first msg");
         return -1;
     }
+    char temp[1];
+    if (recvfrom(sk, temp, 1, 0, hear, &(int){sizeof(*hear)}) < 0) {
+        perror("getting key");
+        return -1;
+    }
+    char A = temp[0];
+    char B = gen_open_key_client(g, b, p);
+    memset(buffer, 0, BUFSZ);
+    if (snprintf(buffer, BUFSZ, "%s%c", id, B) < 0) {
+        perror("sprintf");
+        return -1;
+    }
+    if (sendto(sk, buffer, BUFSZ, 0, name, sizeof(*name)) < 0) {
+        perror("sending key");
+        return -1;
+    }
+    memset(buffer, 0, BUFSZ);
+    K = gen_close_key_client(A, b, p);
     return 0;
 }
 
